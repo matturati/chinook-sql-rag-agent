@@ -124,7 +124,7 @@ if __name__ == "__main__":
             " " \
             f"These are the tables of the database: {list_tables.invoke({})}"
         ),
-        HumanMessage("¿Cuáles son los 5 artistas que más han vendido, es decir más dinero ha generado?"),
+        HumanMessage("top 5 de artistas por facturación"),
     ]
 
     graph.add_node("model",model)
