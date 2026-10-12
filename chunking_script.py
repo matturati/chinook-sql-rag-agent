@@ -12,6 +12,7 @@ SECCIONES_DESCARTADAS = {"See also", "References", "Citations", "Notes", "Source
 
 TAMANO_MINIMO = 300
 TAMANO_MAXIMO = 2000
+
 def dividir_en_secciones(texto: str) -> list[tuple[str, str]]:
     """Divide un artículo en [(título_completo, cuerpo)].
 
@@ -44,16 +45,13 @@ def dividir_en_secciones(texto: str) -> list[tuple[str, str]]:
     ]
 
 
-def chunking(texto: str) -> list[Document]:
+def chunking(texto: str, artista: dict) -> list[Document]:
     secciones = dividir_en_secciones(texto)
-    # TODO (tuyo):
-    #  1. Si la PRIMERA sección es corta (no tiene anterior), juntarla con la siguiente.
-    #  2. Secciones muy largas → dividir por párrafos (separados por "\n") hasta TAMANO_MAXIMO.
-    #  3. Crear un Document por fragmento: cabecera "Artista — Título: " + texto en page_content,
-    #     y artist_id, artista, seccion y url en metadata (están en data/wiki/indice.json).
-    #     Pista: para eso la función necesitará recibir también los datos del artista.
 
-    # Las secciones cortas se juntan con la anterior
+    # Las secciones cortas se juntan con la anterior.
+    # Caso no cubierto: si la PRIMERA sección es corta, no tiene anterior y queda sola.
+    # En los 20 artículos actuales no pasa (la introducción más corta tiene 343 caracteres),
+    # pero habría que juntarla con la siguiente si se descargan más artistas.
     resultado = []
     for titulo, cuerpo in secciones:
         if len(cuerpo) < TAMANO_MINIMO and resultado:
@@ -62,13 +60,53 @@ def chunking(texto: str) -> list[Document]:
         else:
             resultado.append((titulo, cuerpo))
 
-    return resultado
+    resultado_limpio = []
+    for titulo,cuerpo in resultado:
+        if len(cuerpo) > TAMANO_MAXIMO:
+            lineas = [linea for linea in cuerpo.split("\n") if linea.strip()]
+            fragmento = ""
+            for linea in lineas:
+                if (len(linea) + len(fragmento) + 1) > TAMANO_MAXIMO and fragmento:
+                    resultado_limpio.append((titulo,fragmento))
+                    fragmento = linea
+                else:
+                    if fragmento: 
+                        fragmento += "\n" + linea
+                    else:
+                        fragmento += linea
+            if fragmento:
+                resultado_limpio.append((titulo,fragmento))
+        else:
+            resultado_limpio.append((titulo,cuerpo))
+        
+    documentos = []
+    for titulo,cuerpo in resultado_limpio:
+        metadata = {
+            "artist_id":artista["artist_id"],
+            "name":artista["artista"],
+            "url":artista["url"],
+            "section":titulo
+        }
+        documentos.append(Document(page_content=f"{artista["artista"]} - {titulo}\n" + cuerpo,metadata=metadata))
+
+    return documentos
 
 
 if __name__ == "__main__":
+    import json
     from pathlib import Path
 
-    texto = (Path(__file__).parent / "data" / "wiki" / "22_Led_Zeppelin.txt").read_text(encoding="utf-8")
+    carpeta_wiki = Path(__file__).parent / "data" / "wiki"
+    indice = json.loads((carpeta_wiki / "indice.json").read_text(encoding="utf-8"))
 
-    for titulo, cuerpo in chunking(texto):
-        print(f"{len(cuerpo):>6} caracteres | {titulo}")
+    todos = []
+    for artista in indice:
+        texto = (carpeta_wiki / artista["archivo"]).read_text(encoding="utf-8")
+        documentos = chunking(texto, artista)
+        todos.extend(documentos)
+        print(f"{len(documentos):>4} fragmentos | {artista['artista']}")
+
+    print(f"\nTotal: {len(todos)} fragmentos de {len(indice)} artículos")
+    print("\nEjemplo (primer fragmento):")
+    print(todos[0].metadata)
+    print(todos[0].page_content[:300])
