@@ -73,6 +73,20 @@ Bug found and fixed thanks to the evaluation: with `qwen3` on Ollama, the final 
 - 26 questions is a small sample.
 - The metric only looks at the last query executed: if the agent answers correctly without running SQL (for example, from the sample rows returned by `describe_tables`), it counts as a failure.
 
+## Known issues and next steps
+
+Issues found while building and evaluating the agent, and how they are planned to be addressed:
+
+| Issue | Observed | Planned fix |
+|---|---|---|
+| **Tool calls written as plain text.** The model sometimes outputs `<tool_call>{...}</tool_call>` as text instead of a real tool call, and the agent ends without an answer. | 2 of 78 answers (`qwen3:14b`); very frequent with `llama3.1:8b` | Detect the pattern in the model node and either parse it into a real tool call or ask the model to retry. |
+| **Answers taken from sample rows.** When the 5 sample rows of `describe_tables` already contain the answer, the agent answers without running a query. Correct here, but unreliable in general (5 rows are not the full table). | 3 of 78 answers | Tell the model that sample rows are only for understanding the format, and evaluate the final answer as well as the SQL. |
+| **SQL written from memory.** Occasionally the model skips `describe_tables` and guesses column names (e.g. `Track.ArtistId`, which does not exist). It recovers thanks to the error message, at the cost of extra steps. | Seen during development | The SQL error message already suggests calling `describe_tables`; next, include the schema of the involved tables directly in the error. |
+| **Answer inside the reasoning field.** With `qwen3` on Ollama the final answer sometimes arrives in the reasoning field with empty content. | 18 of 26 answers before the fix | Worked around in the model node (fixed). To revisit if newer Ollama versions change this behaviour. |
+| **Contamination.** The model probably knows Chinook, which inflates the results. | — | Evaluate on a version of the database with renamed tables and columns, and add more questions. |
+| **Unbounded `describe_tables` output.** Asking for many tables at once can fill the context window (Ollama truncates silently). | Seen with all 11 tables at once | Limit the number of tables per call or the size of the output. |
+| **Chunking edge cases.** No overlap between chunks; a single paragraph longer than the maximum is kept whole (one chunk of 2,323 characters); a short first section is not merged. | — | Split long paragraphs by sentence, evaluate adding overlap, handle the first-section case. |
+
 ## RAG layer (in progress)
 
 - [x] `descargar_wikipedia.py`: downloads the articles of the best-selling artists. It disambiguates using the database itself: if all of an "artist's" tracks are TV genres, it looks for the TV series (*Lost* is the TV series, not the band *Lost*). It respects the Wikipedia API rate limits.
