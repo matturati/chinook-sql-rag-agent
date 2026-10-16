@@ -1,0 +1,12 @@
+[project]
+name = "chinook-sql-rag-agent"
+version = "0.1.0"
+description = "Agente con LangGraph y modelos locales (Ollama) que responde preguntas sobre la base de datos Chinook mediante SQL, con una capa RAG sobre Wikipedia en desarrollo"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain>=1.4.3",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.12",
+    "ollama>=0.6.3",
+]

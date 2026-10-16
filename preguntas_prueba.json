@@ -1,7 +1,0 @@
-[
-  {
-    "pregunta": "¿Cuáles son los 5 artistas que más dinero han generado en ventas?",
-    "sql_referencia": "SELECT a.Name, ROUND(SUM(i.Quantity * i.UnitPrice), 2) AS total FROM Artist a JOIN Album al ON a.ArtistId = al.ArtistId JOIN Track t ON al.AlbumId = t.AlbumId JOIN InvoiceLine i ON t.TrackId = i.TrackId GROUP BY a.ArtistId ORDER BY total DESC LIMIT 5",
-    "respuesta_esperada": ["Iron Maiden", "U2", "Metallica", "Led Zeppelin", "Lost"]
-  }
-]

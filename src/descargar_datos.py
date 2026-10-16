@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.request import urlretrieve
 
 URL = "https://github.com/lerocha/chinook-database/releases/latest/download/Chinook_Sqlite.sqlite"
-DESTINO = Path(__file__).parent / "data" / "chinook.sqlite"
+DESTINO = Path(__file__).resolve().parent.parent / "data" / "chinook.sqlite"
 
 
 def main():

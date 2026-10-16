@@ -1,0 +1,13 @@
+# Datos descargados (se regeneran con descargar_datos.py y descargar_wikipedia.py)
+data/
+
+# Python
+__pycache__/
+*.py[oc]
+.venv
+
+# Secretos
+.env
+
+# Logs
+*.log

@@ -9,14 +9,17 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 import sqlite3
 import logging
+from pathlib import Path
 logging.basicConfig(
     level=logging.WARNING
 )
 
 logger = logging.getLogger(__name__)
 
+DB = Path(__file__).resolve().parent.parent / "data" / "chinook.sqlite"
+
 def connect_sql():
-    return sqlite3.connect("file:02_tienda_musica/data/chinook.sqlite?mode=ro",uri=True)
+    return sqlite3.connect(f"file:{DB}?mode=ro",uri=True)
 
 def format_rows(cursor, rows) -> list:
     columns = []

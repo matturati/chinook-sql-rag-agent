@@ -5,7 +5,7 @@ Guarda cada artículo como texto plano en data/wiki/ (los títulos de sección q
 
 Fuente: Wikipedia, licencia CC BY-SA 4.0 (hay que citar la URL de cada artículo).
 
-Uso: uv run 02_tienda_musica/descargar_wikipedia.py [número de artistas, por defecto 20]
+Uso: uv run src/descargar_wikipedia.py [número de artistas, por defecto 20]
 """
 import json
 import re
@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-DATA = Path(__file__).parent / "data"
+DATA = Path(__file__).resolve().parent.parent / "data"
 DB = DATA / "chinook.sqlite"
 DESTINO = DATA / "wiki"
 API = "https://en.wikipedia.org/w/api.php"

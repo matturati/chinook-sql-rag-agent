@@ -96,7 +96,7 @@ if __name__ == "__main__":
     import json
     from pathlib import Path
 
-    carpeta_wiki = Path(__file__).parent / "data" / "wiki"
+    carpeta_wiki = Path(__file__).resolve().parent.parent / "data" / "wiki"
     indice = json.loads((carpeta_wiki / "indice.json").read_text(encoding="utf-8"))
 
     todos = []
