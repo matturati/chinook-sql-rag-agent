@@ -1,0 +1,1453 @@
+{
+  "global": {
+    "modelo": "qwen3:14b",
+    "pasadas": 3,
+    "preguntas_por_pasada": 26,
+    "execution_accuracy": {
+      "media": 0.936,
+      "min": 0.923,
+      "max": 0.962
+    },
+    "respuesta_final_correcta": {
+      "media": 0.975,
+      "min": 0.962,
+      "max": 1.0
+    },
+    "segundos_media_por_pregunta": {
+      "media": 35.667,
+      "min": 35.3,
+      "max": 35.9
+    },
+    "preguntas_falladas": [
+      "¿A quién reporta la empleada Jane Peacock?",
+      "¿Qué país ha generado más dinero en facturación?"
+    ]
+  },
+  "pasadas": [
+    {
+      "resumen": {
+        "modelo": "qwen3:14b",
+        "preguntas": 26,
+        "execution_accuracy": 0.962,
+        "respuesta_final_correcta": 1.0,
+        "respuestas_vacias_en_contenido": 0,
+        "media_llamadas_herramientas": 1.88,
+        "preguntas_con_errores_sql_recuperados": 2,
+        "segundos_media_por_pregunta": 35.3,
+        "minutos_totales": 15.3
+      },
+      "detalle": [
+        {
+          "pregunta": "¿Cuántos clientes hay registrados?",
+          "sql_referencia": "SELECT COUNT(*) FROM Customer",
+          "resultado_referencia": [
+            [
+              59
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Customer",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Hay registrados un total de 59 clientes en la base de datos. Esta cifra se obtiene contando todos los registros en la tabla `Customer`, que almacena la información de cada cliente.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 8.7
+        },
+        {
+          "pregunta": "¿Cuántas canciones hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track",
+          "resultado_referencia": [
+            [
+              3503
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El catálogo contiene un total de **3503 canciones**. Esta cantidad se obtuvo contando todos los registros de la tabla `Track`, donde cada fila representa una canción única identificada por su clave primaria `TrackId`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 30.7
+        },
+        {
+          "pregunta": "¿Cuáles son los 5 artistas que más dinero han generado en ventas?",
+          "sql_referencia": "SELECT a.Name FROM Artist a JOIN Album al ON a.ArtistId = al.ArtistId JOIN Track t ON al.AlbumId = t.AlbumId JOIN InvoiceLine i ON t.TrackId = i.TrackId GROUP BY a.ArtistId ORDER BY SUM(i.Quantity * i.UnitPrice) DESC LIMIT 5",
+          "resultado_referencia": [
+            [
+              "Iron Maiden"
+            ],
+            [
+              "U2"
+            ],
+            [
+              "Metallica"
+            ],
+            [
+              "Led Zeppelin"
+            ],
+            [
+              "Lost"
+            ]
+          ],
+          "sql_agente": "SELECT Artist.Name, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId GROUP BY Artist.Name ORDER BY TotalRevenue DESC LIMIT 5;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Los 5 artistas que más dinero han generado en ventas son:\n\n1. **Iron Maiden** - $138.60  \n2. **U2** - $105.93  \n3. **Metallica** - $90.09  \n4. **Led Zeppelin** - $86.13  \n5. **Lost** - $81.59  \n\n**Explicación:**  \nLa consulta calcula el ingreso total de cada artista multiplicando el precio unitario de cada canción (`UnitPrice`) por la cantidad vendida (`Quantity`) en las facturas, y luego suma estos valores por artista. Los resultados se ordenan de mayor a menor ingreso y se limitan a los 5 primeros. Los datos reflejan ventas acumuladas en el sistema, sin considerar fechas específicas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 60.6
+        },
+        {
+          "pregunta": "¿Qué país ha generado más dinero en facturación?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "USA"
+            ]
+          ],
+          "sql_agente": "SELECT BillingCountry, SUM(Total) AS TotalRevenue FROM Invoice GROUP BY BillingCountry ORDER BY TotalRevenue DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El país que ha generado más dinero en facturación es **USA**, con un total de **523.06** unidades monetarias. Esto se determinó sumando los montos de todas las facturas agrupadas por el campo `BillingCountry` en la tabla `Invoice`, y seleccionando el país con el mayor valor.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 30.9
+        },
+        {
+          "pregunta": "¿Qué género musical tiene más canciones en el catálogo?",
+          "sql_referencia": "SELECT g.Name FROM Track t JOIN Genre g ON t.GenreId = g.GenreId GROUP BY g.GenreId ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Rock"
+            ]
+          ],
+          "sql_agente": "SELECT Genre.Name, COUNT(Track.TrackId) AS SongCount FROM Track INNER JOIN Genre ON Track.GenreId = Genre.GenreId GROUP BY Genre.Name ORDER BY SongCount DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El género musical con más canciones en el catálogo es **Rock**, con un total de **1297 canciones**. Esto se debe a que el Rock es uno de los géneros más representados en la base de datos, lo que refleja su popularidad y la gran cantidad de álbumes y canciones asociadas a este estilo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.6
+        },
+        {
+          "pregunta": "¿Cuántos álbumes de AC/DC hay en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Album al JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'AC/DC'",
+          "resultado_referencia": [
+            [
+              2
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Album WHERE ArtistId = 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 2 álbumes de AC/DC en la tienda. Los álbumes son:\n\n1. **For Those About To Rock We Salute You** (AlbumId 1)\n2. **Let There Be Rock** (AlbumId 4)\n\nEstos resultados se obtuvieron al contar las entradas en la tabla `Album` donde el `ArtistId` coincide con el de AC/DC (1).",
+          "respuesta_en_razonamiento": false,
+          "segundos": 42.9
+        },
+        {
+          "pregunta": "¿Qué empleado de soporte ha generado más dinero en ventas a través de los clientes que tiene asignados?",
+          "sql_referencia": "SELECT e.FirstName, e.LastName FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY e.EmployeeId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Jane",
+              "Peacock"
+            ]
+          ],
+          "sql_agente": "SELECT e.EmployeeId, e.FirstName, e.LastName, SUM(i.Total) AS TotalSales FROM Employee e JOIN Customer c ON e.EmployeeId = c.SupportRepId JOIN Invoice i ON c.CustomerId = i.CustomerId GROUP BY e.EmployeeId, e.FirstName, e.LastName ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El empleado de soporte que ha generado más dinero en ventas a través de los clientes que tiene asignados es **Jane Peacock**, con un total de **833.04** en ventas. \n\nEste resultado se obtuvo al unir las tablas de empleados, clientes e invoices, agrupando las ventas por empleado y ordenando de manera descendente para identificar al empleado con el mayor monto.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 46.8
+        },
+        {
+          "pregunta": "¿Cuántas facturas se emitieron en el año 2010?",
+          "sql_referencia": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010'",
+          "resultado_referencia": [
+            [
+              83
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "En el año 2010 se emitieron **83 facturas**. \n\nLa consulta utilizó la función `strftime('%Y', InvoiceDate)` para extraer el año de la fecha y contar las facturas correspondientes. El resultado no está limitado a 20 filas, por lo que el número es completo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 46.2
+        },
+        {
+          "pregunta": "¿Cuál fue la facturación total del año 2011?",
+          "sql_referencia": "SELECT SUM(Total) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2011'",
+          "resultado_referencia": [
+            [
+              469.58
+            ]
+          ],
+          "sql_agente": "SELECT SUM(Total) AS TotalBilling FROM Invoice WHERE InvoiceDate BETWEEN '2011-01-01' AND '2011-12-31';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La facturación total del año 2011 fue de **469.58** unidades monetarias. Este resultado se obtuvo sumando la columna `Total` de la tabla `Invoice`, filtrando solo las facturas cuya fecha (`InvoiceDate`) corresponde al año 2011.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.0
+        },
+        {
+          "pregunta": "¿Qué cliente ha gastado más dinero en total?",
+          "sql_referencia": "SELECT c.FirstName, c.LastName FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Helena",
+              "Holý"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.CustomerId, Customer.FirstName, Customer.LastName, SUM(Invoice.Total) AS TotalSpent FROM Customer JOIN Invoice ON Customer.CustomerId = Invoice.CustomerId GROUP BY Customer.CustomerId ORDER BY TotalSpent DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El cliente que ha gastado más dinero en total es **Helena Holý** con un gasto acumulado de **49.62** unidades monetarias. \n\nEste resultado se obtuvo al sumar el campo `Total` de todas las facturas (`Invoice`) asociadas a cada cliente (`Customer`) y seleccionar al cliente con el mayor valor. No hay otros clientes con el mismo monto máximo, por lo que Helena es la única en la lista.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.2
+        },
+        {
+          "pregunta": "¿Cuál es la canción más larga del catálogo?",
+          "sql_referencia": "SELECT Name FROM Track ORDER BY Milliseconds DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Occupation / Precipice"
+            ]
+          ],
+          "sql_agente": "SELECT Name, Milliseconds FROM Track ORDER BY Milliseconds DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La canción más larga del catálogo es **\"Occupation / Precipice\"**, con una duración de **5,286,953 milisegundos** (lo que equivale a aproximadamente 52 minutos y 87 segundos). Esta canción se encuentra en la tabla `Track` y es la que tiene el valor máximo en la columna `Milliseconds`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 25.1
+        },
+        {
+          "pregunta": "¿Cuántas unidades de canciones del género Rock se han vendido?",
+          "sql_referencia": "SELECT SUM(il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Rock'",
+          "resultado_referencia": [
+            [
+              835
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Genre ON Track.GenreId = Genre.GenreId WHERE Genre.Name = 'Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Se han vendido un total de **835 unidades** de canciones del género **Rock**. Esta cantidad se calcula sumando la columna `Quantity` de la tabla `InvoiceLine` para todos los registros que corresponden a canciones cuyo `GenreId` está asociado al género \"Rock\" en la tabla `Genre`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 39.4
+        },
+        {
+          "pregunta": "¿Cuáles son los 2 países con más clientes?",
+          "sql_referencia": "SELECT Country FROM Customer GROUP BY Country ORDER BY COUNT(*) DESC LIMIT 2",
+          "resultado_referencia": [
+            [
+              "USA"
+            ],
+            [
+              "Canada"
+            ]
+          ],
+          "sql_agente": "SELECT Country, COUNT(*) AS NumberOfCustomers FROM Customer GROUP BY Country ORDER BY NumberOfCustomers DESC LIMIT 2;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Los dos países con más clientes son:\n\n1. **USA** con 13 clientes.\n2. **Canada** con 8 clientes.\n\nEstos resultados se obtuvieron contando la cantidad de registros en la tabla `Customer` agrupados por el campo `Country`, ordenados de forma descendente y limitando el resultado a los dos primeros países.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 18.3
+        },
+        {
+          "pregunta": "¿Qué álbum ha generado más dinero en ventas?",
+          "sql_referencia": "SELECT al.Title FROM Album al JOIN Track t ON t.AlbumId = al.AlbumId JOIN InvoiceLine il ON il.TrackId = t.TrackId GROUP BY al.AlbumId ORDER BY SUM(il.UnitPrice * il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Battlestar Galactica (Classic), Season 1"
+            ]
+          ],
+          "sql_agente": "SELECT Album.Title, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM Album JOIN Track ON Album.AlbumId = Track.AlbumId JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId GROUP BY Album.AlbumId ORDER BY TotalRevenue DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum que ha generado más dinero en ventas es **\"Battlestar Galactica (Classic), Season 1\"**, con un total de **$35.82** en ingresos. \n\nEste resultado se obtuvo al calcular la suma de las ventas individuales de cada canción (multiplicando el precio unitario por la cantidad vendida) y agrupando los datos por álbum. Aunque el nombre del álbum parece referirse a una serie de televisión, según la estructura de la base de datos, está categorizado como un álbum. \n\nSi deseas más detalles o verificar otros álbumes, ¡avísame!",
+          "respuesta_en_razonamiento": false,
+          "segundos": 67.0
+        },
+        {
+          "pregunta": "¿Cuál es el precio medio de una canción del catálogo?",
+          "sql_referencia": "SELECT AVG(UnitPrice) FROM Track",
+          "resultado_referencia": [
+            [
+              1.0508050242649156
+            ]
+          ],
+          "sql_agente": "SELECT AVG(UnitPrice) AS AveragePrice FROM Track;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "El precio medio de una canción en el catálogo es aproximadamente **1.05 euros**. Este cálculo se ha realizado obteniendo el promedio de la columna `UnitPrice` de la tabla `Track`, que contiene la información de precios de todas las canciones disponibles.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 13.3
+        },
+        {
+          "pregunta": "¿Cuántos empleados tiene la empresa?",
+          "sql_referencia": "SELECT COUNT(*) FROM Employee",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Employee;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empresa tiene un total de 8 empleados. Esto se determinó contando el número de registros en la tabla `Employee`, que contiene la información de todos los empleados de la empresa.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 10.1
+        },
+        {
+          "pregunta": "¿A quién reporta la empleada Jane Peacock?",
+          "sql_referencia": "SELECT b.FirstName, b.LastName FROM Employee e JOIN Employee b ON e.ReportsTo = b.EmployeeId WHERE e.FirstName = 'Jane' AND e.LastName = 'Peacock'",
+          "resultado_referencia": [
+            [
+              "Nancy",
+              "Edwards"
+            ]
+          ],
+          "sql_agente": null,
+          "acierto_sql": false,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empleada Jane Peacock reporta a Nancy Edwards. Esto se determina consultando la tabla `Employee`, donde el campo `ReportsTo` de Jane (con `EmployeeId` 3) indica que su jefe inmediato es el empleado con `EmployeeId` 2, cuyo nombre completo es Nancy Edwards.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 19.8
+        },
+        {
+          "pregunta": "¿Qué tipo de formato (media type) se ha vendido más en unidades?",
+          "sql_referencia": "SELECT m.Name FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId ORDER BY SUM(il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "MPEG audio file"
+            ]
+          ],
+          "sql_agente": "SELECT MediaType.Name, SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId GROUP BY MediaType.Name ORDER BY TotalUnits DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El formato de medios (media type) que se ha vendido más en unidades es **\"MPEG audio file\"**, con un total de **1976 unidades** vendidas. Este resultado se obtuvo sumando las cantidades de todas las facturas asociadas a este tipo de archivo, lo que indica que es el más popular en términos de unidades vendidas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.8
+        },
+        {
+          "pregunta": "¿Cuántos artistas no tienen ningún álbum en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Artist a LEFT JOIN Album al ON al.ArtistId = a.ArtistId WHERE al.AlbumId IS NULL",
+          "resultado_referencia": [
+            [
+              71
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Artist LEFT JOIN Album ON Artist.ArtistId = Album.ArtistId WHERE Album.AlbumId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 71 artistas en la tienda que no tienen ningún álbum asociado. Esto significa que, aunque estos artistas están registrados en la base de datos, no hay ningún álbum en la tienda que esté vinculado a ellos.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.9
+        },
+        {
+          "pregunta": "¿Cuántas canciones tiene el álbum 'Let There Be Rock'?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId WHERE al.Title = 'Let There Be Rock'",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS NumberOfSongs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId WHERE Album.Title = 'Let There Be Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum 'Let There Be Rock' contiene **8 canciones**. Esto se determinó al contar el número de registros en la tabla `Track` que están asociados al álbum con el título especificado mediante una unión (JOIN) con la tabla `Album`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.3
+        },
+        {
+          "pregunta": "¿Cuántas canciones de Iron Maiden hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Iron Maiden'",
+          "resultado_referencia": [
+            [
+              213
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS num_songs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Iron Maiden';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay **213 canciones** de Iron Maiden en el catálogo. \n\nEste resultado se obtuvo al unir las tablas `Track` (canciones), `Album` (álbumes) y `Artist` (artistas), filtrando por el nombre del artista \"Iron Maiden\" y contando las filas correspondientes en la tabla `Track`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 48.5
+        },
+        {
+          "pregunta": "¿Qué país tiene el mayor importe medio por factura?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY AVG(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Chile"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.Country, AVG(Invoice.Total) AS AvgTotal FROM Invoice JOIN Customer ON Invoice.CustomerId = Customer.CustomerId GROUP BY Customer.Country ORDER BY AvgTotal DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El país con el mayor importe medio por factura es **Chile**, con un promedio de **6.66** por factura. Esto se calculó uniendo las tablas de facturas e información de clientes, agrupando por país y calculando el promedio de importe por factura en cada uno.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 34.3
+        },
+        {
+          "pregunta": "¿Qué compositor aparece en más canciones del catálogo?",
+          "sql_referencia": "SELECT Composer FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Steve Harris"
+            ]
+          ],
+          "sql_agente": "SELECT Composer, COUNT(*) as num_songs FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY num_songs DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El compositor que aparece en más canciones del catálogo es **Steve Harris**, con un total de **80 canciones**. \n\nEste resultado se obtuvo contando la cantidad de canciones en la tabla `Track` donde el campo `Composer` no está vacío, agrupando por nombre de compositor y ordenando de forma descendente. La consulta excluyó canciones sin información de compositor para garantizar precisión.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 44.7
+        },
+        {
+          "pregunta": "¿Qué año tuvo la mayor facturación?",
+          "sql_referencia": "SELECT strftime('%Y', InvoiceDate) y FROM Invoice GROUP BY y ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "2010"
+            ]
+          ],
+          "sql_agente": "SELECT strftime('%Y', InvoiceDate) AS Year, SUM(Total) AS TotalSales FROM Invoice GROUP BY Year ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "El año con la mayor facturación fue **2010**, con un total de **481.45** en ventas. Esto se determinó calculando la suma de los valores de la columna `Total` en la tabla `Invoice`, agrupados por el año extraído de la columna `InvoiceDate`, y seleccionando el año con el mayor valor.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 36.2
+        },
+        {
+          "pregunta": "¿Cuánto dinero han generado en ventas las canciones de Metallica?",
+          "sql_referencia": "SELECT SUM(il.UnitPrice * il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Metallica'",
+          "resultado_referencia": [
+            [
+              90.09
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Metallica';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Las ventas de las canciones de Metallica han generado un total de **90.09 dólares**. Este cálculo se basa en el precio unitario de cada canción multiplicado por la cantidad vendida, sumando todos los registros correspondientes a las canciones de Metallica en las facturas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 34.8
+        },
+        {
+          "pregunta": "¿Cuántas canciones del catálogo no se han vendido nunca?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t WHERE NOT EXISTS (SELECT 1 FROM InvoiceLine il WHERE il.TrackId = t.TrackId)",
+          "resultado_referencia": [
+            [
+              1519
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track LEFT JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId WHERE InvoiceLine.InvoiceLineId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La cantidad de canciones en el catálogo que nunca se han vendido es **1519**. Esto se determinó al comparar la lista completa de canciones en la tabla `Track` con las entradas de ventas en la tabla `InvoiceLine`, identificando aquellas canciones que no tienen registros de venta.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.7
+        }
+      ]
+    },
+    {
+      "resumen": {
+        "modelo": "qwen3:14b",
+        "preguntas": 26,
+        "execution_accuracy": 0.923,
+        "respuesta_final_correcta": 0.962,
+        "respuestas_vacias_en_contenido": 0,
+        "media_llamadas_herramientas": 1.85,
+        "preguntas_con_errores_sql_recuperados": 2,
+        "segundos_media_por_pregunta": 35.8,
+        "minutos_totales": 15.5
+      },
+      "detalle": [
+        {
+          "pregunta": "¿Cuántos clientes hay registrados?",
+          "sql_referencia": "SELECT COUNT(*) FROM Customer",
+          "resultado_referencia": [
+            [
+              59
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS total_customers FROM Customer;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Hay registrados 59 clientes en la base de datos.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 5.8
+        },
+        {
+          "pregunta": "¿Cuántas canciones hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track",
+          "resultado_referencia": [
+            [
+              3503
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay un total de **3503 canciones** en el catálogo. Esta cantidad se obtuvo contando todos los registros de la tabla `Track`, donde cada fila representa una canción única identificada por su `TrackId`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 33.0
+        },
+        {
+          "pregunta": "¿Cuáles son los 5 artistas que más dinero han generado en ventas?",
+          "sql_referencia": "SELECT a.Name FROM Artist a JOIN Album al ON a.ArtistId = al.ArtistId JOIN Track t ON al.AlbumId = t.AlbumId JOIN InvoiceLine i ON t.TrackId = i.TrackId GROUP BY a.ArtistId ORDER BY SUM(i.Quantity * i.UnitPrice) DESC LIMIT 5",
+          "resultado_referencia": [
+            [
+              "Iron Maiden"
+            ],
+            [
+              "U2"
+            ],
+            [
+              "Metallica"
+            ],
+            [
+              "Led Zeppelin"
+            ],
+            [
+              "Lost"
+            ]
+          ],
+          "sql_agente": "SELECT Artist.Name, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId GROUP BY Artist.Name ORDER BY TotalRevenue DESC LIMIT 5;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Los 5 artistas que más dinero han generado en ventas son:\n\n1. **Iron Maiden** con un total de **$138.60**.\n2. **U2** con **$105.93**.\n3. **Metallica** con **$90.09**.\n4. **Led Zeppelin** con **$86.13**.\n5. **Lost** con **$81.59**.\n\nEstos resultados se calculan sumando el valor total de las ventas (precio unitario multiplicado por la cantidad vendida) de cada canción, agrupando por artista a través de las tablas `InvoiceLine`, `Track`, `Album` y `Artist`. El orden se establece de mayor a menor ingreso.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 87.1
+        },
+        {
+          "pregunta": "¿Qué país ha generado más dinero en facturación?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "USA"
+            ]
+          ],
+          "sql_agente": null,
+          "acierto_sql": false,
+          "respuesta_correcta": false,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "<tool_call>\n{\"name\": \"execute_query\", \"arguments\": {\"query\": \"SELECT Customer.Country, SUM(Invoice.Total) AS TotalRevenue\\nFROM Invoice\\nJOIN Customer ON Invoice.CustomerId = Customer.CustomerId\\nGROUP BY Customer.Country\\nORDER BY TotalRevenue DESC\\nLIMIT 1;\"}}\n</tool_call>",
+          "respuesta_en_razonamiento": false,
+          "segundos": 15.2
+        },
+        {
+          "pregunta": "¿Qué género musical tiene más canciones en el catálogo?",
+          "sql_referencia": "SELECT g.Name FROM Track t JOIN Genre g ON t.GenreId = g.GenreId GROUP BY g.GenreId ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Rock"
+            ]
+          ],
+          "sql_agente": "SELECT Genre.Name, COUNT(Track.TrackId) AS SongCount FROM Track INNER JOIN Genre ON Track.GenreId = Genre.GenreId GROUP BY Genre.Name ORDER BY SongCount DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El género musical con más canciones en el catálogo es **Rock**, con un total de **1297 canciones**. Esto se debe a que el Rock es uno de los géneros más representados en la base de datos, lo que refleja su popularidad y la gran cantidad de álbumes y canciones asociadas a este estilo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.6
+        },
+        {
+          "pregunta": "¿Cuántos álbumes de AC/DC hay en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Album al JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'AC/DC'",
+          "resultado_referencia": [
+            [
+              2
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Album WHERE ArtistId = 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 2 álbumes de AC/DC en la tienda. Los álbumes son:\n\n1. **For Those About To Rock We Salute You** (AlbumId 1)\n2. **Let There Be Rock** (AlbumId 4)\n\nEstos resultados se obtuvieron al contar las entradas en la tabla `Album` donde el `ArtistId` coincide con el de AC/DC (1).",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.2
+        },
+        {
+          "pregunta": "¿Qué empleado de soporte ha generado más dinero en ventas a través de los clientes que tiene asignados?",
+          "sql_referencia": "SELECT e.FirstName, e.LastName FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY e.EmployeeId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Jane",
+              "Peacock"
+            ]
+          ],
+          "sql_agente": "SELECT e.EmployeeId, e.FirstName, e.LastName, SUM(i.Total) AS TotalSales FROM Employee e JOIN Customer c ON e.EmployeeId = c.SupportRepId JOIN Invoice i ON c.CustomerId = i.CustomerId GROUP BY e.EmployeeId, e.FirstName, e.LastName ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El empleado de soporte que ha generado más dinero en ventas a través de los clientes que tiene asignados es **Jane Peacock**, con un total de **833.04** en ventas. \n\nEste resultado se obtuvo al unir las tablas de empleados, clientes e invoices, agrupando las ventas por empleado y ordenando de manera descendente para identificar al empleado con el mayor monto.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 46.9
+        },
+        {
+          "pregunta": "¿Cuántas facturas se emitieron en el año 2010?",
+          "sql_referencia": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010'",
+          "resultado_referencia": [
+            [
+              83
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "En el año 2010 se emitieron **83 facturas**. \n\nLa consulta utilizó la función `strftime('%Y', InvoiceDate)` para extraer el año de la fecha y contar las facturas correspondientes. El resultado no está limitado a 20 filas, por lo que el número es completo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 46.4
+        },
+        {
+          "pregunta": "¿Cuál fue la facturación total del año 2011?",
+          "sql_referencia": "SELECT SUM(Total) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2011'",
+          "resultado_referencia": [
+            [
+              469.58
+            ]
+          ],
+          "sql_agente": "SELECT SUM(Total) AS TotalBilling FROM Invoice WHERE InvoiceDate BETWEEN '2011-01-01' AND '2011-12-31';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La facturación total del año 2011 fue de **469.58** unidades monetarias. Este resultado se obtuvo sumando la columna `Total` de la tabla `Invoice`, filtrando solo las facturas cuya fecha (`InvoiceDate`) corresponde al año 2011.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.1
+        },
+        {
+          "pregunta": "¿Qué cliente ha gastado más dinero en total?",
+          "sql_referencia": "SELECT c.FirstName, c.LastName FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Helena",
+              "Holý"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.CustomerId, Customer.FirstName, Customer.LastName, SUM(Invoice.Total) AS TotalSpent FROM Customer JOIN Invoice ON Customer.CustomerId = Invoice.CustomerId GROUP BY Customer.CustomerId ORDER BY TotalSpent DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El cliente que ha gastado más dinero en total es **Helena Holý** con un gasto acumulado de **49.62** unidades monetarias. \n\nEste resultado se obtuvo al sumar el campo `Total` de todas las facturas (`Invoice`) asociadas a cada cliente (`Customer`) y seleccionar al cliente con el mayor valor. No hay otros clientes con el mismo monto máximo, por lo que Helena es la única en la lista.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.4
+        },
+        {
+          "pregunta": "¿Cuál es la canción más larga del catálogo?",
+          "sql_referencia": "SELECT Name FROM Track ORDER BY Milliseconds DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Occupation / Precipice"
+            ]
+          ],
+          "sql_agente": "SELECT Name, Milliseconds FROM Track ORDER BY Milliseconds DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La canción más larga del catálogo es **\"Occupation / Precipice\"**, con una duración de **5,286,953 milisegundos** (lo que equivale a aproximadamente 52 minutos y 87 segundos). Esta canción se encuentra en la tabla `Track` y es la que tiene el valor máximo en la columna `Milliseconds`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 25.3
+        },
+        {
+          "pregunta": "¿Cuántas unidades de canciones del género Rock se han vendido?",
+          "sql_referencia": "SELECT SUM(il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Rock'",
+          "resultado_referencia": [
+            [
+              835
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Genre ON Track.GenreId = Genre.GenreId WHERE Genre.Name = 'Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Se han vendido un total de **835 unidades** de canciones del género **Rock**. Esta cantidad se calcula sumando la columna `Quantity` de la tabla `InvoiceLine` para todos los registros que corresponden a canciones cuyo `GenreId` está asociado al género \"Rock\" en la tabla `Genre`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 39.5
+        },
+        {
+          "pregunta": "¿Cuáles son los 2 países con más clientes?",
+          "sql_referencia": "SELECT Country FROM Customer GROUP BY Country ORDER BY COUNT(*) DESC LIMIT 2",
+          "resultado_referencia": [
+            [
+              "USA"
+            ],
+            [
+              "Canada"
+            ]
+          ],
+          "sql_agente": "SELECT Country, COUNT(*) AS NumberOfCustomers FROM Customer GROUP BY Country ORDER BY NumberOfCustomers DESC LIMIT 2;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Los dos países con más clientes son:\n\n1. **USA** con 13 clientes.\n2. **Canada** con 8 clientes.\n\nEstos resultados se obtuvieron contando la cantidad de registros en la tabla `Customer` agrupados por el campo `Country`, ordenados de forma descendente y limitando el resultado a los dos primeros países.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 18.1
+        },
+        {
+          "pregunta": "¿Qué álbum ha generado más dinero en ventas?",
+          "sql_referencia": "SELECT al.Title FROM Album al JOIN Track t ON t.AlbumId = al.AlbumId JOIN InvoiceLine il ON il.TrackId = t.TrackId GROUP BY al.AlbumId ORDER BY SUM(il.UnitPrice * il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Battlestar Galactica (Classic), Season 1"
+            ]
+          ],
+          "sql_agente": "SELECT Album.Title, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM Album JOIN Track ON Album.AlbumId = Track.AlbumId JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId GROUP BY Album.AlbumId ORDER BY TotalRevenue DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum que ha generado más dinero en ventas es **\"Battlestar Galactica (Classic), Season 1\"**, con un total de **$35.82** en ingresos. \n\nEste resultado se obtuvo al calcular la suma de las ventas individuales de cada canción (multiplicando el precio unitario por la cantidad vendida) y agrupando los datos por álbum. Aunque el nombre del álbum parece referirse a una serie de televisión, según la estructura de la base de datos, está categorizado como un álbum. \n\nSi deseas más detalles o verificar otros álbumes, ¡avísame!",
+          "respuesta_en_razonamiento": false,
+          "segundos": 67.6
+        },
+        {
+          "pregunta": "¿Cuál es el precio medio de una canción del catálogo?",
+          "sql_referencia": "SELECT AVG(UnitPrice) FROM Track",
+          "resultado_referencia": [
+            [
+              1.0508050242649156
+            ]
+          ],
+          "sql_agente": "SELECT AVG(UnitPrice) AS AveragePrice FROM Track;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "El precio medio de una canción en el catálogo es aproximadamente **1.05 euros**. Este cálculo se ha realizado obteniendo el promedio de la columna `UnitPrice` de la tabla `Track`, que contiene la información de precios de todas las canciones disponibles.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 13.5
+        },
+        {
+          "pregunta": "¿Cuántos empleados tiene la empresa?",
+          "sql_referencia": "SELECT COUNT(*) FROM Employee",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Employee;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empresa tiene un total de 8 empleados. Esto se determinó contando el número de registros en la tabla `Employee`, que contiene la información de todos los empleados de la empresa.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 10.2
+        },
+        {
+          "pregunta": "¿A quién reporta la empleada Jane Peacock?",
+          "sql_referencia": "SELECT b.FirstName, b.LastName FROM Employee e JOIN Employee b ON e.ReportsTo = b.EmployeeId WHERE e.FirstName = 'Jane' AND e.LastName = 'Peacock'",
+          "resultado_referencia": [
+            [
+              "Nancy",
+              "Edwards"
+            ]
+          ],
+          "sql_agente": null,
+          "acierto_sql": false,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empleada Jane Peacock reporta a Nancy Edwards. Esto se determina consultando la tabla `Employee`, donde el campo `ReportsTo` de Jane (con `EmployeeId` 3) indica que su jefe inmediato es el empleado con `EmployeeId` 2, cuyo nombre completo es Nancy Edwards.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 19.8
+        },
+        {
+          "pregunta": "¿Qué tipo de formato (media type) se ha vendido más en unidades?",
+          "sql_referencia": "SELECT m.Name FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId ORDER BY SUM(il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "MPEG audio file"
+            ]
+          ],
+          "sql_agente": "SELECT MediaType.Name, SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId GROUP BY MediaType.Name ORDER BY TotalUnits DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El formato de medios (media type) que se ha vendido más en unidades es **\"MPEG audio file\"**, con un total de **1976 unidades** vendidas. Este resultado se obtuvo sumando las cantidades de todas las facturas asociadas a este tipo de archivo, lo que indica que es el más popular en términos de unidades vendidas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.9
+        },
+        {
+          "pregunta": "¿Cuántos artistas no tienen ningún álbum en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Artist a LEFT JOIN Album al ON al.ArtistId = a.ArtistId WHERE al.AlbumId IS NULL",
+          "resultado_referencia": [
+            [
+              71
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Artist LEFT JOIN Album ON Artist.ArtistId = Album.ArtistId WHERE Album.AlbumId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 71 artistas en la tienda que no tienen ningún álbum asociado. Esto significa que, aunque estos artistas están registrados en la base de datos, no hay ningún álbum en la tienda que esté vinculado a ellos.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.7
+        },
+        {
+          "pregunta": "¿Cuántas canciones tiene el álbum 'Let There Be Rock'?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId WHERE al.Title = 'Let There Be Rock'",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS NumberOfSongs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId WHERE Album.Title = 'Let There Be Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum 'Let There Be Rock' contiene **8 canciones**. Esto se determinó al contar el número de registros en la tabla `Track` que están asociados al álbum con el título especificado mediante una unión (JOIN) con la tabla `Album`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.6
+        },
+        {
+          "pregunta": "¿Cuántas canciones de Iron Maiden hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Iron Maiden'",
+          "resultado_referencia": [
+            [
+              213
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS num_songs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Iron Maiden';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay **213 canciones** de Iron Maiden en el catálogo. \n\nEste resultado se obtuvo al unir las tablas `Track` (canciones), `Album` (álbumes) y `Artist` (artistas), filtrando por el nombre del artista \"Iron Maiden\" y contando las filas correspondientes en la tabla `Track`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 48.8
+        },
+        {
+          "pregunta": "¿Qué país tiene el mayor importe medio por factura?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY AVG(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Chile"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.Country, AVG(Invoice.Total) AS AvgTotal FROM Invoice JOIN Customer ON Invoice.CustomerId = Customer.CustomerId GROUP BY Customer.Country ORDER BY AvgTotal DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El país con el mayor importe medio por factura es **Chile**, con un promedio de **6.66** por factura. Esto se calculó uniendo las tablas de facturas e información de clientes, agrupando por país y calculando el promedio de importe por factura en cada uno.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 34.5
+        },
+        {
+          "pregunta": "¿Qué compositor aparece en más canciones del catálogo?",
+          "sql_referencia": "SELECT Composer FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Steve Harris"
+            ]
+          ],
+          "sql_agente": "SELECT Composer, COUNT(*) as num_songs FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY num_songs DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El compositor que aparece en más canciones del catálogo es **Steve Harris**, con un total de **80 canciones**. \n\nEste resultado se obtuvo contando la cantidad de canciones en la tabla `Track` donde el campo `Composer` no está vacío, agrupando por nombre de compositor y ordenando de forma descendente. La consulta excluyó canciones sin información de compositor para garantizar precisión.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 44.7
+        },
+        {
+          "pregunta": "¿Qué año tuvo la mayor facturación?",
+          "sql_referencia": "SELECT strftime('%Y', InvoiceDate) y FROM Invoice GROUP BY y ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "2010"
+            ]
+          ],
+          "sql_agente": "SELECT strftime('%Y', InvoiceDate) AS Year, SUM(Total) AS TotalSales FROM Invoice GROUP BY Year ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "El año con la mayor facturación fue **2010**, con un total de **481.45** en ventas. Esto se determinó calculando la suma de los valores de la columna `Total` en la tabla `Invoice`, agrupados por el año extraído de la columna `InvoiceDate`, y seleccionando el año con el mayor valor.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 36.1
+        },
+        {
+          "pregunta": "¿Cuánto dinero han generado en ventas las canciones de Metallica?",
+          "sql_referencia": "SELECT SUM(il.UnitPrice * il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Metallica'",
+          "resultado_referencia": [
+            [
+              90.09
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Metallica';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Las ventas de las canciones de Metallica han generado un total de **90.09 dólares**. Este cálculo se basa en el precio unitario de cada canción multiplicado por la cantidad vendida, sumando todos los registros correspondientes a las canciones de Metallica en las facturas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 35.0
+        },
+        {
+          "pregunta": "¿Cuántas canciones del catálogo no se han vendido nunca?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t WHERE NOT EXISTS (SELECT 1 FROM InvoiceLine il WHERE il.TrackId = t.TrackId)",
+          "resultado_referencia": [
+            [
+              1519
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track LEFT JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId WHERE InvoiceLine.InvoiceLineId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La cantidad de canciones en el catálogo que nunca se han vendido es **1519**. Esto se determinó al comparar la lista completa de canciones en la tabla `Track` con las entradas de ventas en la tabla `InvoiceLine`, identificando aquellas canciones que no tienen registros de venta.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.6
+        }
+      ]
+    },
+    {
+      "resumen": {
+        "modelo": "qwen3:14b",
+        "preguntas": 26,
+        "execution_accuracy": 0.923,
+        "respuesta_final_correcta": 0.962,
+        "respuestas_vacias_en_contenido": 0,
+        "media_llamadas_herramientas": 1.85,
+        "preguntas_con_errores_sql_recuperados": 2,
+        "segundos_media_por_pregunta": 35.9,
+        "minutos_totales": 15.5
+      },
+      "detalle": [
+        {
+          "pregunta": "¿Cuántos clientes hay registrados?",
+          "sql_referencia": "SELECT COUNT(*) FROM Customer",
+          "resultado_referencia": [
+            [
+              59
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS total_customers FROM Customer;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Hay registrados 59 clientes en la base de datos.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 5.9
+        },
+        {
+          "pregunta": "¿Cuántas canciones hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track",
+          "resultado_referencia": [
+            [
+              3503
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay un total de **3503 canciones** en el catálogo. Esta cantidad se obtuvo contando todos los registros de la tabla `Track`, donde cada fila representa una canción única identificada por su `TrackId`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.9
+        },
+        {
+          "pregunta": "¿Cuáles son los 5 artistas que más dinero han generado en ventas?",
+          "sql_referencia": "SELECT a.Name FROM Artist a JOIN Album al ON a.ArtistId = al.ArtistId JOIN Track t ON al.AlbumId = t.AlbumId JOIN InvoiceLine i ON t.TrackId = i.TrackId GROUP BY a.ArtistId ORDER BY SUM(i.Quantity * i.UnitPrice) DESC LIMIT 5",
+          "resultado_referencia": [
+            [
+              "Iron Maiden"
+            ],
+            [
+              "U2"
+            ],
+            [
+              "Metallica"
+            ],
+            [
+              "Led Zeppelin"
+            ],
+            [
+              "Lost"
+            ]
+          ],
+          "sql_agente": "SELECT Artist.Name, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId GROUP BY Artist.Name ORDER BY TotalRevenue DESC LIMIT 5;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Los 5 artistas que más dinero han generado en ventas son:\n\n1. **Iron Maiden** con un total de **$138.60**.\n2. **U2** con **$105.93**.\n3. **Metallica** con **$90.09**.\n4. **Led Zeppelin** con **$86.13**.\n5. **Lost** con **$81.59**.\n\nEstos resultados se calculan sumando el valor total de las ventas (precio unitario multiplicado por la cantidad vendida) de cada canción, agrupando por artista a través de las tablas `InvoiceLine`, `Track`, `Album` y `Artist`. El orden se establece de mayor a menor ingreso.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 87.3
+        },
+        {
+          "pregunta": "¿Qué país ha generado más dinero en facturación?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "USA"
+            ]
+          ],
+          "sql_agente": null,
+          "acierto_sql": false,
+          "respuesta_correcta": false,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "<tool_call>\n{\"name\": \"execute_query\", \"arguments\": {\"query\": \"SELECT Customer.Country, SUM(Invoice.Total) AS TotalRevenue\\nFROM Invoice\\nJOIN Customer ON Invoice.CustomerId = Customer.CustomerId\\nGROUP BY Customer.Country\\nORDER BY TotalRevenue DESC\\nLIMIT 1;\"}}\n</tool_call>",
+          "respuesta_en_razonamiento": false,
+          "segundos": 15.3
+        },
+        {
+          "pregunta": "¿Qué género musical tiene más canciones en el catálogo?",
+          "sql_referencia": "SELECT g.Name FROM Track t JOIN Genre g ON t.GenreId = g.GenreId GROUP BY g.GenreId ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Rock"
+            ]
+          ],
+          "sql_agente": "SELECT Genre.Name, COUNT(Track.TrackId) AS SongCount FROM Track INNER JOIN Genre ON Track.GenreId = Genre.GenreId GROUP BY Genre.Name ORDER BY SongCount DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El género musical con más canciones en el catálogo es **Rock**, con un total de **1297 canciones**. Esto se debe a que el Rock es uno de los géneros más representados en la base de datos, lo que refleja su popularidad y la gran cantidad de álbumes y canciones asociadas a este estilo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.9
+        },
+        {
+          "pregunta": "¿Cuántos álbumes de AC/DC hay en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Album al JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'AC/DC'",
+          "resultado_referencia": [
+            [
+              2
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Album WHERE ArtistId = 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 2 álbumes de AC/DC en la tienda. Los álbumes son:\n\n1. **For Those About To Rock We Salute You** (AlbumId 1)\n2. **Let There Be Rock** (AlbumId 4)\n\nEstos resultados se obtuvieron al contar las entradas en la tabla `Album` donde el `ArtistId` coincide con el de AC/DC (1).",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.2
+        },
+        {
+          "pregunta": "¿Qué empleado de soporte ha generado más dinero en ventas a través de los clientes que tiene asignados?",
+          "sql_referencia": "SELECT e.FirstName, e.LastName FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY e.EmployeeId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Jane",
+              "Peacock"
+            ]
+          ],
+          "sql_agente": "SELECT e.EmployeeId, e.FirstName, e.LastName, SUM(i.Total) AS TotalSales FROM Employee e JOIN Customer c ON e.EmployeeId = c.SupportRepId JOIN Invoice i ON c.CustomerId = i.CustomerId GROUP BY e.EmployeeId, e.FirstName, e.LastName ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El empleado de soporte que ha generado más dinero en ventas a través de los clientes que tiene asignados es **Jane Peacock**, con un total de **833.04** en ventas. \n\nEste resultado se obtuvo al unir las tablas de empleados, clientes e invoices, agrupando las ventas por empleado y ordenando de manera descendente para identificar al empleado con el mayor monto.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 47.0
+        },
+        {
+          "pregunta": "¿Cuántas facturas se emitieron en el año 2010?",
+          "sql_referencia": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010'",
+          "resultado_referencia": [
+            [
+              83
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2010';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "En el año 2010 se emitieron **83 facturas**. \n\nLa consulta utilizó la función `strftime('%Y', InvoiceDate)` para extraer el año de la fecha y contar las facturas correspondientes. El resultado no está limitado a 20 filas, por lo que el número es completo.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 46.3
+        },
+        {
+          "pregunta": "¿Cuál fue la facturación total del año 2011?",
+          "sql_referencia": "SELECT SUM(Total) FROM Invoice WHERE strftime('%Y', InvoiceDate) = '2011'",
+          "resultado_referencia": [
+            [
+              469.58
+            ]
+          ],
+          "sql_agente": "SELECT SUM(Total) AS TotalBilling FROM Invoice WHERE InvoiceDate BETWEEN '2011-01-01' AND '2011-12-31';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La facturación total del año 2011 fue de **469.58** unidades monetarias. Este resultado se obtuvo sumando la columna `Total` de la tabla `Invoice`, filtrando solo las facturas cuya fecha (`InvoiceDate`) corresponde al año 2011.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.0
+        },
+        {
+          "pregunta": "¿Qué cliente ha gastado más dinero en total?",
+          "sql_referencia": "SELECT c.FirstName, c.LastName FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY SUM(i.Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Helena",
+              "Holý"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.CustomerId, Customer.FirstName, Customer.LastName, SUM(Invoice.Total) AS TotalSpent FROM Customer JOIN Invoice ON Customer.CustomerId = Invoice.CustomerId GROUP BY Customer.CustomerId ORDER BY TotalSpent DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El cliente que ha gastado más dinero en total es **Helena Holý** con un gasto acumulado de **49.62** unidades monetarias. \n\nEste resultado se obtuvo al sumar el campo `Total` de todas las facturas (`Invoice`) asociadas a cada cliente (`Customer`) y seleccionar al cliente con el mayor valor. No hay otros clientes con el mismo monto máximo, por lo que Helena es la única en la lista.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 43.2
+        },
+        {
+          "pregunta": "¿Cuál es la canción más larga del catálogo?",
+          "sql_referencia": "SELECT Name FROM Track ORDER BY Milliseconds DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Occupation / Precipice"
+            ]
+          ],
+          "sql_agente": "SELECT Name, Milliseconds FROM Track ORDER BY Milliseconds DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La canción más larga del catálogo es **\"Occupation / Precipice\"**, con una duración de **5,286,953 milisegundos** (lo que equivale a aproximadamente 52 minutos y 87 segundos). Esta canción se encuentra en la tabla `Track` y es la que tiene el valor máximo en la columna `Milliseconds`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 25.3
+        },
+        {
+          "pregunta": "¿Cuántas unidades de canciones del género Rock se han vendido?",
+          "sql_referencia": "SELECT SUM(il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Rock'",
+          "resultado_referencia": [
+            [
+              835
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Genre ON Track.GenreId = Genre.GenreId WHERE Genre.Name = 'Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Se han vendido un total de **835 unidades** de canciones del género **Rock**. Esta cantidad se calcula sumando la columna `Quantity` de la tabla `InvoiceLine` para todos los registros que corresponden a canciones cuyo `GenreId` está asociado al género \"Rock\" en la tabla `Genre`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 39.7
+        },
+        {
+          "pregunta": "¿Cuáles son los 2 países con más clientes?",
+          "sql_referencia": "SELECT Country FROM Customer GROUP BY Country ORDER BY COUNT(*) DESC LIMIT 2",
+          "resultado_referencia": [
+            [
+              "USA"
+            ],
+            [
+              "Canada"
+            ]
+          ],
+          "sql_agente": "SELECT Country, COUNT(*) AS NumberOfCustomers FROM Customer GROUP BY Country ORDER BY NumberOfCustomers DESC LIMIT 2;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "Los dos países con más clientes son:\n\n1. **USA** con 13 clientes.\n2. **Canada** con 8 clientes.\n\nEstos resultados se obtuvieron contando la cantidad de registros en la tabla `Customer` agrupados por el campo `Country`, ordenados de forma descendente y limitando el resultado a los dos primeros países.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 18.5
+        },
+        {
+          "pregunta": "¿Qué álbum ha generado más dinero en ventas?",
+          "sql_referencia": "SELECT al.Title FROM Album al JOIN Track t ON t.AlbumId = al.AlbumId JOIN InvoiceLine il ON il.TrackId = t.TrackId GROUP BY al.AlbumId ORDER BY SUM(il.UnitPrice * il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Battlestar Galactica (Classic), Season 1"
+            ]
+          ],
+          "sql_agente": "SELECT Album.Title, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM Album JOIN Track ON Album.AlbumId = Track.AlbumId JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId GROUP BY Album.AlbumId ORDER BY TotalRevenue DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum que ha generado más dinero en ventas es **\"Battlestar Galactica (Classic), Season 1\"**, con un total de **$35.82** en ingresos. \n\nEste resultado se obtuvo al calcular la suma de las ventas individuales de cada canción (multiplicando el precio unitario por la cantidad vendida) y agrupando los datos por álbum. Aunque el nombre del álbum parece referirse a una serie de televisión, según la estructura de la base de datos, está categorizado como un álbum. \n\nSi deseas más detalles o verificar otros álbumes, ¡avísame!",
+          "respuesta_en_razonamiento": false,
+          "segundos": 67.6
+        },
+        {
+          "pregunta": "¿Cuál es el precio medio de una canción del catálogo?",
+          "sql_referencia": "SELECT AVG(UnitPrice) FROM Track",
+          "resultado_referencia": [
+            [
+              1.0508050242649156
+            ]
+          ],
+          "sql_agente": "SELECT AVG(UnitPrice) AS AveragePrice FROM Track;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "El precio medio de una canción en el catálogo es aproximadamente **1.05 euros**. Este cálculo se ha realizado obteniendo el promedio de la columna `UnitPrice` de la tabla `Track`, que contiene la información de precios de todas las canciones disponibles.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 13.6
+        },
+        {
+          "pregunta": "¿Cuántos empleados tiene la empresa?",
+          "sql_referencia": "SELECT COUNT(*) FROM Employee",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Employee;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empresa tiene un total de 8 empleados. Esto se determinó contando el número de registros en la tabla `Employee`, que contiene la información de todos los empleados de la empresa.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 10.2
+        },
+        {
+          "pregunta": "¿A quién reporta la empleada Jane Peacock?",
+          "sql_referencia": "SELECT b.FirstName, b.LastName FROM Employee e JOIN Employee b ON e.ReportsTo = b.EmployeeId WHERE e.FirstName = 'Jane' AND e.LastName = 'Peacock'",
+          "resultado_referencia": [
+            [
+              "Nancy",
+              "Edwards"
+            ]
+          ],
+          "sql_agente": null,
+          "acierto_sql": false,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 1,
+          "errores_herramientas": 0,
+          "respuesta": "La empleada Jane Peacock reporta a Nancy Edwards. Esto se determina consultando la tabla `Employee`, donde el campo `ReportsTo` de Jane (con `EmployeeId` 3) indica que su jefe inmediato es el empleado con `EmployeeId` 2, cuyo nombre completo es Nancy Edwards.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 20.0
+        },
+        {
+          "pregunta": "¿Qué tipo de formato (media type) se ha vendido más en unidades?",
+          "sql_referencia": "SELECT m.Name FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId ORDER BY SUM(il.Quantity) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "MPEG audio file"
+            ]
+          ],
+          "sql_agente": "SELECT MediaType.Name, SUM(InvoiceLine.Quantity) AS TotalUnits FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId GROUP BY MediaType.Name ORDER BY TotalUnits DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El formato de medios (media type) que se ha vendido más en unidades es **\"MPEG audio file\"**, con un total de **1976 unidades** vendidas. Este resultado se obtuvo sumando las cantidades de todas las facturas asociadas a este tipo de archivo, lo que indica que es el más popular en términos de unidades vendidas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 33.3
+        },
+        {
+          "pregunta": "¿Cuántos artistas no tienen ningún álbum en la tienda?",
+          "sql_referencia": "SELECT COUNT(*) FROM Artist a LEFT JOIN Album al ON al.ArtistId = a.ArtistId WHERE al.AlbumId IS NULL",
+          "resultado_referencia": [
+            [
+              71
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Artist LEFT JOIN Album ON Artist.ArtistId = Album.ArtistId WHERE Album.AlbumId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay 71 artistas en la tienda que no tienen ningún álbum asociado. Esto significa que, aunque estos artistas están registrados en la base de datos, no hay ningún álbum en la tienda que esté vinculado a ellos.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 44.2
+        },
+        {
+          "pregunta": "¿Cuántas canciones tiene el álbum 'Let There Be Rock'?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId WHERE al.Title = 'Let There Be Rock'",
+          "resultado_referencia": [
+            [
+              8
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS NumberOfSongs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId WHERE Album.Title = 'Let There Be Rock';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El álbum 'Let There Be Rock' contiene **8 canciones**. Esto se determinó al contar el número de registros en la tabla `Track` que están asociados al álbum con el título especificado mediante una unión (JOIN) con la tabla `Album`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 32.7
+        },
+        {
+          "pregunta": "¿Cuántas canciones de Iron Maiden hay en el catálogo?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Iron Maiden'",
+          "resultado_referencia": [
+            [
+              213
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) AS num_songs FROM Track JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Iron Maiden';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Hay **213 canciones** de Iron Maiden en el catálogo. \n\nEste resultado se obtuvo al unir las tablas `Track` (canciones), `Album` (álbumes) y `Artist` (artistas), filtrando por el nombre del artista \"Iron Maiden\" y contando las filas correspondientes en la tabla `Track`.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 48.6
+        },
+        {
+          "pregunta": "¿Qué país tiene el mayor importe medio por factura?",
+          "sql_referencia": "SELECT BillingCountry FROM Invoice GROUP BY BillingCountry ORDER BY AVG(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Chile"
+            ]
+          ],
+          "sql_agente": "SELECT Customer.Country, AVG(Invoice.Total) AS AvgTotal FROM Invoice JOIN Customer ON Invoice.CustomerId = Customer.CustomerId GROUP BY Customer.Country ORDER BY AvgTotal DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El país con el mayor importe medio por factura es **Chile**, con un promedio de **6.66** por factura. Esto se calculó uniendo las tablas de facturas e información de clientes, agrupando por país y calculando el promedio de importe por factura en cada uno.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 34.9
+        },
+        {
+          "pregunta": "¿Qué compositor aparece en más canciones del catálogo?",
+          "sql_referencia": "SELECT Composer FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY COUNT(*) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "Steve Harris"
+            ]
+          ],
+          "sql_agente": "SELECT Composer, COUNT(*) as num_songs FROM Track WHERE Composer IS NOT NULL GROUP BY Composer ORDER BY num_songs DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "El compositor que aparece en más canciones del catálogo es **Steve Harris**, con un total de **80 canciones**. \n\nEste resultado se obtuvo contando la cantidad de canciones en la tabla `Track` donde el campo `Composer` no está vacío, agrupando por nombre de compositor y ordenando de forma descendente. La consulta excluyó canciones sin información de compositor para garantizar precisión.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 45.2
+        },
+        {
+          "pregunta": "¿Qué año tuvo la mayor facturación?",
+          "sql_referencia": "SELECT strftime('%Y', InvoiceDate) y FROM Invoice GROUP BY y ORDER BY SUM(Total) DESC LIMIT 1",
+          "resultado_referencia": [
+            [
+              "2010"
+            ]
+          ],
+          "sql_agente": "SELECT strftime('%Y', InvoiceDate) AS Year, SUM(Total) AS TotalSales FROM Invoice GROUP BY Year ORDER BY TotalSales DESC LIMIT 1;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 3,
+          "errores_herramientas": 1,
+          "respuesta": "El año con la mayor facturación fue **2010**, con un total de **481.45** en ventas. Esto se determinó calculando la suma de los valores de la columna `Total` en la tabla `Invoice`, agrupados por el año extraído de la columna `InvoiceDate`, y seleccionando el año con el mayor valor.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 36.1
+        },
+        {
+          "pregunta": "¿Cuánto dinero han generado en ventas las canciones de Metallica?",
+          "sql_referencia": "SELECT SUM(il.UnitPrice * il.Quantity) FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist a ON a.ArtistId = al.ArtistId WHERE a.Name = 'Metallica'",
+          "resultado_referencia": [
+            [
+              90.09
+            ]
+          ],
+          "sql_agente": "SELECT SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS TotalRevenue FROM InvoiceLine JOIN Track ON InvoiceLine.TrackId = Track.TrackId JOIN Album ON Track.AlbumId = Album.AlbumId JOIN Artist ON Album.ArtistId = Artist.ArtistId WHERE Artist.Name = 'Metallica';",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "Las ventas de las canciones de Metallica han generado un total de **90.09 dólares**. Este cálculo se basa en el precio unitario de cada canción multiplicado por la cantidad vendida, sumando todos los registros correspondientes a las canciones de Metallica en las facturas.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 34.9
+        },
+        {
+          "pregunta": "¿Cuántas canciones del catálogo no se han vendido nunca?",
+          "sql_referencia": "SELECT COUNT(*) FROM Track t WHERE NOT EXISTS (SELECT 1 FROM InvoiceLine il WHERE il.TrackId = t.TrackId)",
+          "resultado_referencia": [
+            [
+              1519
+            ]
+          ],
+          "sql_agente": "SELECT COUNT(*) FROM Track LEFT JOIN InvoiceLine ON Track.TrackId = InvoiceLine.TrackId WHERE InvoiceLine.InvoiceLineId IS NULL;",
+          "acierto_sql": true,
+          "respuesta_correcta": true,
+          "llamadas_herramientas": 2,
+          "errores_herramientas": 0,
+          "respuesta": "La cantidad de canciones en el catálogo que nunca se han vendido es **1519**. Esto se determinó al comparar la lista completa de canciones en la tabla `Track` con las entradas de ventas en la tabla `InvoiceLine`, identificando aquellas canciones que no tienen registros de venta.",
+          "respuesta_en_razonamiento": false,
+          "segundos": 31.4
+        }
+      ]
+    }
+  ]
+}

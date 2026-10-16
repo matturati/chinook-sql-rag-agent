@@ -110,7 +110,14 @@ def execute_query(query:str) -> dict:
     return {"Resultant rows":format_rows(cursor,rows[:20]),"Result was limited":shortened}
 
 def model(state: MessagesState)-> dict:
-    return {"messages": [llm.invoke(state["messages"])]}
+    respuesta = llm.invoke(state["messages"])
+    # qwen3 + Ollama a veces deja la respuesta final dentro del razonamiento y el contenido vacío:
+    # si no pide herramientas y no hay contenido, usamos el razonamiento como respuesta
+    if not respuesta.tool_calls and not respuesta.content.strip():
+        razonamiento = respuesta.additional_kwargs.get("reasoning_content", "")
+        if razonamiento:
+            respuesta = respuesta.model_copy(update={"content": razonamiento})
+    return {"messages": [respuesta]}
 
 describe_tables.handle_tool_error = True
 execute_query.handle_tool_error = True

@@ -49,7 +49,24 @@ graph TD;
 
 **Main metric: execution accuracy**, as in the Spider and BIRD benchmarks. The last query the agent ran is re-executed and its result is compared with the reference result (extra columns are allowed, numbers are compared with a 0.01 tolerance, and row order only counts when the question asks for it).
 
-<!-- RESULTS -->
+### Results
+
+`qwen3:14b` (Ollama, `temperature=0`, `num_ctx=16000`), 3 runs × 26 questions:
+
+| Metric | Mean | Range across runs |
+|---|---|---|
+| **Execution accuracy** | **93.6 %** | 92.3 – 96.2 % |
+| Correct final answer (natural language) | 97.5 % | 96.2 – 100 % |
+| Tool calls per question | 1.9 | |
+| Time per question (RTX 4060 Ti 16 GB) | 36 s | |
+
+Even with `temperature=0` the results vary slightly between runs, which is why the evaluation is repeated. Full detail per question and run: [`results/eval_sql.json`](results/eval_sql.json).
+
+**Failure analysis.** Only 2 of the 26 questions failed in any run:
+- *"Who does employee Jane Peacock report to?"* (fails in 3/3 runs): the final answer is **correct**, but the agent takes it from the sample rows returned by `describe_tables` (which happen to include both employees) instead of running a query. Execution accuracy counts it as a failure because there is no SQL to check.
+- *"Which country has generated the most revenue?"* (fails in 2/3 runs): the model writes the tool call **as plain text** (`<tool_call>{...}</tool_call>`) instead of emitting a real tool call, so the agent ends without answering. A known failure mode of local models with tool calling.
+
+Bug found and fixed thanks to the evaluation: with `qwen3` on Ollama, the final answer sometimes ended up inside the reasoning field with empty content (18 of 26 answers in a first run). The model node now moves it to the content.
 
 **Limitations**, to read the numbers correctly:
 - Chinook is a well-known public database and the model has probably seen it during training (contamination), so results on a private database would likely be lower.
