@@ -2,7 +2,7 @@
 
 An agent built with **LangGraph** that answers natural-language questions about a music store (the [Chinook](https://github.com/lerocha/chinook-database) database). The agent explores the schema, writes and runs SQL queries, recovers from its own errors and explains the result. It runs **fully locally** with [Ollama](https://ollama.com) models (`qwen3:14b` by default).
 
-In progress: a **RAG** layer over the artists' Wikipedia articles, to answer questions that combine sales data with information about the artists.
+It also has a **RAG** layer over the Wikipedia articles of the best-selling artists, so it can answer questions that combine sales data with information about the artists (e.g. *"Which artist has generated the most revenue, and where was the band formed?"*).
 
 Example run:
 
@@ -32,6 +32,7 @@ graph TD;
 | `list_tables` | Lists the tables in the database |
 | `describe_tables` | For a list of tables, returns their `CREATE TABLE` statement (columns, types, primary and foreign keys) and 5 sample rows |
 | `execute_query` | Runs a SQL query and returns at most 20 rows |
+| `search_wikipedia` | Semantic search over the artists' Wikipedia articles, optionally filtered by artist; returns the matching chunks with their source URL |
 
 ## Design decisions
 
@@ -86,13 +87,19 @@ Issues found while building and evaluating the agent, and how they are planned t
 | **Contamination.** The model probably knows Chinook, which inflates the results. | — | Evaluate on a version of the database with renamed tables and columns, and add more questions. |
 | **Unbounded `describe_tables` output.** Asking for many tables at once can fill the context window (Ollama truncates silently). | Seen with all 11 tables at once | Limit the number of tables per call or the size of the output. |
 | **Chunking edge cases.** No overlap between chunks; a single paragraph longer than the maximum is kept whole (one chunk of 2,323 characters); a short first section is not merged. | — | Split long paragraphs by sentence, evaluate adding overlap, handle the first-section case. |
+| **Invented results.** In a mixed question, the model stopped halfway and answered *"the query returned 21 songs"* without having run any query (the real value is 45). | Seen once during manual testing | Add a grounding check before the agent ends: every number in the final answer must appear in a tool result, otherwise the model is sent back to run the query. Measure it in the mixed evaluation. |
+| **Parallel calls that depend on each other.** The model sometimes searched Wikipedia for an artist before the SQL query that tells which artist it is, and guessed it wrong. | Seen during manual testing | Fixed in the system prompt (make dependent calls one at a time); to be confirmed with the mixed evaluation. |
+| **Band members passed as artists.** The model passes `artist_name="Freddie Mercury"` and doesn't retry with the band. | Seen during manual testing | Fixed in code: for an unknown artist, the search falls back to all artists and warns that the results may not be about them. |
 
-## RAG layer (in progress)
+## RAG layer
 
 - [x] `descargar_wikipedia.py`: downloads the articles of the best-selling artists. It disambiguates using the database itself: if all of an "artist's" tracks are TV genres, it looks for the TV series (*Lost* is the TV series, not the band *Lost*). It respects the Wikipedia API rate limits.
 - [x] `chunking_script.py`: structure-aware chunking (sections and subsections), merging of short sections, splitting of long ones by paragraph (300–2,000 characters), a context header (artist and section) on every chunk, and metadata (`artist_id`, which links to the SQL database; section; source URL).
-- [ ] Embeddings (`qwen3-embedding`) and vector store (Chroma).
-- [ ] Search tool for the agent, and questions that combine SQL and RAG.
+- [x] `rag.py`: embeddings (`qwen3-embedding:0.6b`) and a persistent vector store (Chroma) with the 810 chunks. Chunk IDs are stable (`{artist_id}_{n}`), so re-indexing doesn't duplicate them. The search can be filtered by artist (case-insensitive). If the artist has no articles (e.g. a band member like Freddie Mercury), it searches all artists and warns that the results may not be about that artist, listing the available ones.
+  Quick check of cross-language retrieval: the same 6 questions in English and Spanish return the same top-3 chunks in 5 of 6 cases, with slightly higher distances in Spanish. The agent is still asked to search in English.
+- [x] `search_wikipedia` tool for the agent. The system prompt tells it to use Wikipedia only when asked about an artist's history, members, origin or style, to make dependent calls one at a time (first SQL to find the artist, then Wikipedia), to cite the source URL and to say so when the documents don't contain the answer. The Chroma client is created once before the agent starts, because `ToolNode` runs tool calls in parallel threads and creating several clients at the same time fails.
+- [ ] Evaluation with questions that combine SQL and RAG (several runs, as for the SQL agent).
+- [ ] Decide the distance metric (Chroma's default is L2; cosine is usual for embedding models).
 - [ ] Compare structure-aware chunking with *semantic chunking*.
 
 ## How to run it
@@ -110,9 +117,11 @@ uv run src/evaluar_sql.py qwen3:14b 3  # evaluation (3 runs) → results/eval_sq
 # RAG layer
 uv run src/descargar_wikipedia.py 20   # articles of the 20 best-selling artists → data/wiki/
 uv run src/chunking_script.py
+ollama pull qwen3-embedding:0.6b
+uv run src/rag.py                      # indexes the chunks into Chroma → data/chroma/ and runs test searches
 ```
 
-The code comments and the evaluation questions are in Spanish.
+Code comments are in English; variable names and the evaluation questions are in Spanish.
 
 ## Project structure
 
@@ -122,7 +131,8 @@ src/
 ├── evaluar_sql.py          # evaluation (execution accuracy)
 ├── descargar_datos.py      # downloads the Chinook database
 ├── descargar_wikipedia.py  # downloads and disambiguates the artists' articles
-└── chunking_script.py      # structure-aware chunking for the RAG layer
+├── chunking_script.py      # structure-aware chunking for the RAG layer
+└── rag.py                  # indexing (embeddings + Chroma) and search
 results/                    # evaluation results
 data/                       # downloaded data (not versioned)
 ```

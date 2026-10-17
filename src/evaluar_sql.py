@@ -1,20 +1,20 @@
-"""Evaluación del agente SQL: ejecuta el agente con un conjunto de preguntas y mide cuántas acierta.
+"""Evaluation of the SQL agent: runs the agent on a set of questions and measures how many it gets right.
 
-Métrica principal, *execution accuracy* (como en los benchmarks Spider y BIRD): se toma la última
-consulta SQL que el agente ejecutó con éxito, se vuelve a ejecutar completa y se compara su
-resultado con el de una consulta de referencia escrita a mano.
-- Se permiten columnas de más en el resultado del agente (p. ej. el total además del nombre).
-- Los números se comparan con tolerancia de 0.01 y los textos sin distinguir mayúsculas.
-- Si la pregunta pide un orden (top N), el orden también cuenta.
+Main metric, *execution accuracy* (as in the Spider and BIRD benchmarks): the last SQL query the
+agent ran successfully is re-executed in full and its result is compared with the result of a
+hand-written reference query.
+- Extra columns in the agent's result are allowed (e.g. the total as well as the name).
+- Numbers are compared with a 0.01 tolerance and text case-insensitively.
+- If the question asks for an order (top N), the order also counts.
 
-Métrica secundaria: si la respuesta final en lenguaje natural menciona los valores esperados.
+Secondary metric: whether the final natural-language answer mentions the expected values.
 
-Como el modelo no es del todo determinista (incluso con temperature=0), la evaluación se puede
-repetir varias veces y se informa de la media y del rango.
+Since the model is not fully deterministic (even with temperature=0), the evaluation can be
+repeated several times and the mean and range are reported.
 
-Uso:
-    uv run src/evaluar_sql.py                    # qwen3:14b, 1 pasada
-    uv run src/evaluar_sql.py qwen3:14b 3        # 3 pasadas
+Usage:
+    uv run src/evaluar_sql.py                    # qwen3:14b, 1 run
+    uv run src/evaluar_sql.py qwen3:14b 3        # 3 runs
     uv run src/evaluar_sql.py gpt-oss:20b
 """
 import json
@@ -31,13 +31,13 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-import agente  # las herramientas y el nodo del modelo del agente
+import agente  # the agent's tools and model node
 
 DB = Path(__file__).resolve().parent.parent / "data" / "chinook.sqlite"
 RESULTADOS = Path(__file__).resolve().parent.parent / "results" / "eval_sql.json"
 
-# (pregunta, consulta de referencia, ¿importa el orden de las filas?)
-# La referencia solo selecciona las columnas que responden a la pregunta.
+# (question, reference query, does the row order matter?)
+# The reference only selects the columns that answer the question.
 PREGUNTAS = [
     ("¿Cuántos clientes hay registrados?",
      "SELECT COUNT(*) FROM Customer", False),
@@ -102,7 +102,7 @@ PREGUNTAS = [
      "SELECT COUNT(*) FROM Track t WHERE NOT EXISTS (SELECT 1 FROM InvoiceLine il WHERE il.TrackId = t.TrackId)", False),
 ]
 
-# El mismo system prompt que usa agente.py
+# The SQL part of agente.py's system prompt: this evaluation measures the SQL agent only
 SYSTEM_PROMPT = (
     "Always use the tools if it is needed. First, gather information of the tables and their structure: call "
     "describe_tables() once with the list of all the tables you need, instead of one call per table. Then query when "
@@ -114,7 +114,7 @@ SYSTEM_PROMPT = (
 )
 
 
-# ---------- Comparación de resultados ----------
+# ---------- Result comparison ----------
 
 def normalizar_texto(valor) -> str:
     texto = unicodedata.normalize("NFKD", str(valor)).encode("ascii", "ignore").decode()
@@ -122,7 +122,7 @@ def normalizar_texto(valor) -> str:
 
 
 def como_numero(valor):
-    """Devuelve el valor como float si lo es (o es un texto numérico, como el año '2010'); si no, None."""
+    """Returns the value as a float if it is one (or a numeric string, like the year '2010'); otherwise None."""
     if isinstance(valor, bool) or valor is None:
         return None
     try:
@@ -132,11 +132,11 @@ def como_numero(valor):
 
 
 def celda_en_fila(celda_ref, fila_agente) -> bool:
-    """¿El valor de referencia aparece en alguna columna de la fila del agente?"""
+    """Does the reference value appear in any column of the agent's row?"""
     numero = como_numero(celda_ref)
     if numero is not None:
         return any(n is not None and abs(n - numero) <= 0.01 for n in map(como_numero, fila_agente))
-    # Texto: se compara contra cada celda y contra la fila entera (por si el agente concatena nombre y apellido)
+    # Text: compared against each cell and against the whole row (in case the agent concatenates first and last name)
     texto = normalizar_texto(celda_ref)
     fila_entera = " ".join(normalizar_texto(c) for c in fila_agente)
     return texto in fila_entera
@@ -151,7 +151,7 @@ def resultados_coinciden(ref, agente_filas, importa_orden) -> bool:
         return False
     if importa_orden:
         return all(fila_coincide(r, a) for r, a in zip(ref, agente_filas))
-    # Sin orden: cada fila de referencia debe emparejarse con una fila distinta del agente
+    # Unordered: each reference row must be matched with a different row of the agent's result
     disponibles = list(agente_filas)
     for fila_ref in ref:
         for i, fila_agente in enumerate(disponibles):
@@ -164,7 +164,7 @@ def resultados_coinciden(ref, agente_filas, importa_orden) -> bool:
 
 
 def numeros_en_texto(texto: str) -> list[float]:
-    """Extrae números aceptando separadores de miles y decimales en formato inglés o español."""
+    """Extracts numbers, accepting English or Spanish thousands and decimal separators."""
     numeros = []
     for bruto in re.findall(r"\d[\d.,  ]*\d|\d", texto):
         bruto = bruto.replace(" ", "").replace(" ", "")
@@ -199,11 +199,11 @@ def ejecutar(sql: str):
         conexion.close()
 
 
-# ---------- Agente ----------
+# ---------- Agent ----------
 
 def construir_agente(modelo: str):
     herramientas = [agente.list_tables, agente.describe_tables, agente.execute_query]
-    # El nodo "model" de agente.py usa la variable global "llm" del módulo
+    # The "model" node in agente.py uses the module-level global "llm"
     agente.llm = ChatOllama(model=modelo, num_ctx=16000, temperature=0, reasoning=True).bind_tools(herramientas)
     grafo = StateGraph(MessagesState)
     grafo.add_node("model", agente.model)
@@ -215,8 +215,8 @@ def construir_agente(modelo: str):
 
 
 def analizar_mensajes(mensajes):
-    """Devuelve (última SQL con éxito, nº llamadas a herramientas, nº errores, respuesta final,
-    si la respuesta estaba en el razonamiento en vez de en el contenido)."""
+    """Returns (last successful SQL, number of tool calls, number of errors, final answer,
+    whether the answer was in the reasoning instead of the content)."""
     estados = {m.tool_call_id: m.status for m in mensajes if isinstance(m, ToolMessage)}
     ultima_sql, llamadas, errores = None, 0, 0
     for m in mensajes:
@@ -230,7 +230,7 @@ def analizar_mensajes(mensajes):
     respuesta, en_razonamiento = "", False
     if isinstance(mensajes[-1], AIMessage):
         respuesta = mensajes[-1].content
-        # qwen3 + Ollama a veces deja la respuesta final dentro del razonamiento y el contenido vacío
+        # qwen3 + Ollama sometimes puts the final answer inside the reasoning and leaves the content empty
         if not respuesta.strip():
             respuesta = mensajes[-1].additional_kwargs.get("reasoning_content", "")
             en_razonamiento = bool(respuesta)
@@ -263,7 +263,7 @@ def una_pasada(agente_compilado, modelo: str) -> dict:
             })
         except GraphRecursionError:
             registro.update({"acierto_sql": False, "respuesta_correcta": False, "fallo": "límite de pasos"})
-        except Exception as e:  # cualquier otro fallo cuenta como pregunta fallada, pero se registra
+        except Exception as e:  # any other failure counts as a failed question, but it is recorded
             registro.update({"acierto_sql": False, "respuesta_correcta": False, "fallo": repr(e)})
         registro["segundos"] = round(time.time() - inicio, 1)
         resultados.append(registro)
@@ -306,7 +306,7 @@ def evaluar(modelo: str, pasadas: int):
         "execution_accuracy": agregado("execution_accuracy"),
         "respuesta_final_correcta": agregado("respuesta_final_correcta"),
         "segundos_media_por_pregunta": agregado("segundos_media_por_pregunta"),
-        # Preguntas que fallaron en alguna pasada, para revisarlas a mano
+        # Questions that failed in any run, to review them by hand
         "preguntas_falladas": sorted({d["pregunta"] for r in resultados for d in r["detalle"] if not d["acierto_sql"]}),
     }
     RESULTADOS.write_text(json.dumps({"global": global_, "pasadas": resultados}, ensure_ascii=False, indent=2, default=str),
