@@ -2,11 +2,11 @@ import re
 
 from langchain_core.documents import Document
 
-# Un título ocupa una línea entera: "== History ==", "=== Formation: 1966–1968 ===", ...
-# Grupo 1: los "=" (su longitud es el nivel). Grupo 2: el texto del título.
+# A heading takes a whole line: "== History ==", "=== Formation: 1966–1968 ===", ...
+# Group 1: the "=" signs (their length is the level). Group 2: the heading text.
 PATRON_TITULO = re.compile(r"^(={2,4})\s*(.+?)\s*\1\s*$", re.MULTILINE)
 
-# Secciones de nivel 2 que no aportan nada al RAG (listas de enlaces y bibliografía)
+# Level-2 sections that add nothing to the RAG (lists of links and bibliography)
 SECCIONES_DESCARTADAS = {"See also", "References", "Citations", "Notes", "Sources",
                          "External links", "Further reading", "Bibliography"}
 
@@ -14,23 +14,23 @@ TAMANO_MINIMO = 300
 TAMANO_MAXIMO = 2000
 
 def dividir_en_secciones(texto: str) -> list[tuple[str, str]]:
-    """Divide un artículo en [(título_completo, cuerpo)].
+    """Splits an article into [(full_title, body)].
 
-    El título completo incluye los niveles superiores, p. ej. "History: Formation: 1966–1968".
-    El texto anterior al primer título es la introducción del artículo.
+    The full title includes the parent levels, e.g. "History: Formation: 1966–1968".
+    The text before the first heading is the article's introduction.
     """
     secciones = []
-    jerarquia = {}            # nivel → título actual de ese nivel
+    jerarquia = {}            # level → current title at that level
     titulo_actual = "Introduction"
     inicio_cuerpo = 0
 
     for coincidencia in PATRON_TITULO.finditer(texto):
-        # Guardamos el cuerpo de la sección anterior (lo que hay entre su título y este)
+        # Save the body of the previous section (the text between its heading and this one)
         secciones.append((titulo_actual, texto[inicio_cuerpo:coincidencia.start()].strip()))
 
         nivel = len(coincidencia.group(1))
         jerarquia[nivel] = coincidencia.group(2)
-        # Al abrir un título, los subniveles del anterior dejan de valer
+        # A new heading closes the sublevels of the previous one
         for nivel_inferior in [n for n in jerarquia if n > nivel]:
             del jerarquia[nivel_inferior]
 
@@ -48,10 +48,10 @@ def dividir_en_secciones(texto: str) -> list[tuple[str, str]]:
 def chunking(texto: str, artista: dict) -> list[Document]:
     secciones = dividir_en_secciones(texto)
 
-    # Las secciones cortas se juntan con la anterior.
-    # Caso no cubierto: si la PRIMERA sección es corta, no tiene anterior y queda sola.
-    # En los 20 artículos actuales no pasa (la introducción más corta tiene 343 caracteres),
-    # pero habría que juntarla con la siguiente si se descargan más artistas.
+    # Short sections are merged into the previous one.
+    # Not handled: if the FIRST section is short, it has no previous one and stays on its own.
+    # It doesn't happen in the current 20 articles (the shortest introduction is 343 characters),
+    # but it should be merged with the next one if more artists are downloaded.
     resultado = []
     for titulo, cuerpo in secciones:
         if len(cuerpo) < TAMANO_MINIMO and resultado:
@@ -60,6 +60,9 @@ def chunking(texto: str, artista: dict) -> list[Document]:
         else:
             resultado.append((titulo, cuerpo))
 
+    # Long sections are split by paragraphs, accumulated up to TAMANO_MAXIMO.
+    # LangChain's RecursiveCharacterTextSplitter already does this (and adds overlap),
+    # but it is implemented by hand on purpose, to understand how the splitting works.
     resultado_limpio = []
     for titulo,cuerpo in resultado:
         if len(cuerpo) > TAMANO_MAXIMO:

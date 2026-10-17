@@ -1,11 +1,11 @@
-"""Descarga de Wikipedia (en inglés) los artículos de los artistas de Chinook que más venden.
+"""Downloads from (English) Wikipedia the articles of Chinook's best-selling artists.
 
-Guarda cada artículo como texto plano en data/wiki/ (los títulos de sección quedan como
-"== Sección ==") y un índice con el artista, el título y la URL en data/wiki/indice.json.
+Saves each article as plain text in data/wiki/ (section headings are kept as
+"== Section ==") and an index with the artist, title and URL in data/wiki/indice.json.
 
-Fuente: Wikipedia, licencia CC BY-SA 4.0 (hay que citar la URL de cada artículo).
+Source: Wikipedia, CC BY-SA 4.0 license (the URL of each article must be credited).
 
-Uso: uv run src/descargar_wikipedia.py [número de artistas, por defecto 20]
+Usage: uv run src/descargar_wikipedia.py [number of artists, default 20]
 """
 import json
 import re
@@ -21,29 +21,29 @@ DATA = Path(__file__).resolve().parent.parent / "data"
 DB = DATA / "chinook.sqlite"
 DESTINO = DATA / "wiki"
 API = "https://en.wikipedia.org/w/api.php"
-# Wikipedia exige un User-Agent que identifique el programa
+# Wikipedia requires a User-Agent that identifies the program
 USER_AGENT = "agentes-tienda-musica/0.1 (proyecto de aprendizaje)"
 
-# Chinook también vende episodios de series; estos géneros indican que el "artista" es una serie
+# Chinook also sells TV episodes; these genres mean the "artist" is a TV series
 GENEROS_TV = {"TV Shows", "Drama", "Comedy", "Science Fiction", "Sci Fi & Fantasy"}
 
-# Para cada tipo: sufijos de desambiguación de Wikipedia (en orden de preferencia) y palabras
-# que deben aparecer en la introducción para aceptar el artículo
+# For each type: Wikipedia disambiguation suffixes (in order of preference) and words
+# that must appear in the introduction for the article to be accepted
 BUSQUEDA = {
     "musica": (("(band)", "(musician)", "(singer)", "(rapper)", ""),
                ("band", "musician", "singer", "rapper", "composer", "guitarist", "duo", "group")),
     "serie": (("(TV series)", "(American TV series)", ""),
               ("television series", "tv series", "sitcom", "drama series")),
 }
-# Casos que la búsqueda automática resuelve mal: nombre en Chinook → título exacto en Wikipedia
+# Cases the automatic search gets wrong: name in Chinook → exact Wikipedia title
 TITULOS_MANUALES = {
     "Battlestar Galactica (Classic)": "Battlestar Galactica (1978 TV series)",
 }
-ESPERA = 1.0  # segundos entre peticiones, para no saturar la API
+ESPERA = 1.0  # seconds between requests, to avoid overloading the API
 
 
 def top_artistas(n):
-    """Devuelve [(ArtistId, Name, géneros)] de los n artistas que más dinero han generado."""
+    """Returns [(ArtistId, Name, genres)] for the n artists that have generated the most revenue."""
     conexion = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     try:
         artistas = conexion.execute(
@@ -78,14 +78,14 @@ def llamar_api(params, reintentos=5):
         except HTTPError as e:
             if e.code != 429 or intento == reintentos - 1:
                 raise
-            # Demasiadas peticiones: esperamos lo que diga Wikipedia o, si no lo dice, cada vez más
+            # Too many requests: wait as long as Wikipedia says or, if it doesn't say, a bit longer each time
             espera = int(e.headers.get("Retry-After") or 2 ** (intento + 1))
             print(f"    (Wikipedia pide esperar; reintento en {espera} s)")
             time.sleep(espera)
 
 
 def obtener_pagina(titulo):
-    """Devuelve (título, texto) del artículo, o None si no existe o es de desambiguación."""
+    """Returns the article's (title, text), or None if it doesn't exist or is a disambiguation page."""
     datos = llamar_api({
         "action": "query", "prop": "extracts|pageprops", "explaintext": 1,
         "redirects": 1, "titles": titulo,
@@ -97,7 +97,7 @@ def obtener_pagina(titulo):
 
 
 def buscar_articulo(nombre, generos):
-    """Prueba el nombre con los sufijos de desambiguación y se queda con el primero que encaje."""
+    """Tries the name with each disambiguation suffix and keeps the first one that fits."""
     if nombre in TITULOS_MANUALES:
         return obtener_pagina(TITULOS_MANUALES[nombre])
     tipo = "serie" if generos and generos <= GENEROS_TV else "musica"
@@ -108,12 +108,12 @@ def buscar_articulo(nombre, generos):
         if resultado is None:
             continue
         titulo, texto = resultado
-        # Solo miramos el primer párrafo: ahí Wikipedia dice qué es el tema del artículo
+        # Only the first paragraph is checked: that's where Wikipedia says what the article is about
         introduccion = texto[:600].lower()
         if any(palabra in introduccion for palabra in palabras_clave):
             return titulo, texto
 
-    # Si ningún título exacto encaja (mayúsculas distintas, "(Classic)"...), usamos el buscador
+    # If no exact title fits (different capitalization, "(Classic)"...), fall back to the search API
     pista = "band" if tipo == "musica" else "television series"
     resultados = llamar_api({"action": "query", "list": "search", "srsearch": f"{nombre} {pista}", "srlimit": 3})
     time.sleep(ESPERA)

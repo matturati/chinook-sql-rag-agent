@@ -1,6 +1,6 @@
-"""Descarga la base de datos Chinook (SQLite) en data/.
+"""Downloads the Chinook database (SQLite) into data/.
 
-Fuente: https://github.com/lerocha/chinook-database (Luis Rocha, licencia MIT).
+Source: https://github.com/lerocha/chinook-database (Luis Rocha, MIT license).
 """
 from pathlib import Path
 from urllib.request import urlretrieve
