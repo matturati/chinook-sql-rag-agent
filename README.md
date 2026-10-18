@@ -50,7 +50,7 @@ graph TD;
 
 **Main metric: execution accuracy**, as in the Spider and BIRD benchmarks. The last query the agent ran is re-executed and its result is compared with the reference result (extra columns are allowed, numbers are compared with a 0.01 tolerance, and row order only counts when the question asks for it).
 
-### Results
+### SQL agent: results
 
 `qwen3:14b` (Ollama, `temperature=0`, `num_ctx=16000`), 3 runs × 26 questions:
 
@@ -74,13 +74,66 @@ Bug found and fixed thanks to the evaluation: with `qwen3` on Ollama, the final 
 - 26 questions is a small sample.
 - The metric only looks at the last query executed: if the agent answers correctly without running SQL (for example, from the sample rows returned by `describe_tables`), it counts as a failure.
 
+### Full agent (SQL + RAG)
+
+`evaluar_agente_global.py` runs the complete agent (4 tools) on **17 questions** of five types: Wikipedia only, SQL then Wikipedia (*"which artist sells the most, and where was the band formed?"*), Wikipedia then SQL (*"which band did Freddie Mercury sing in, and how many of its songs does the store have?"*), artists in the store without Wikipedia articles, and SQL only. Every reference answer was checked against the database and the downloaded articles, not against general knowledge.
+
+Each answer goes through automatic checks (no LLM judge yet):
+
+| Check | What it verifies |
+|---|---|
+| Key facts | The answer contains the expected values (text without accents or case, numbers with a 0.01 tolerance) |
+| No forbidden facts | It doesn't state facts the model knows but the documents don't contain (e.g. *Boston* for Aerosmith, which has no articles) |
+| Tools | It called the tools the question needs, and not the ones it doesn't (e.g. no Wikipedia for a sales ranking) |
+| Cites the source | It includes the Wikipedia URL when the answer comes from the articles |
+| Grounded numbers | Every number in the answer appears in a tool result or in the question, to catch invented results |
+
+An answer is correct only if it passes every check that applies to it.
+
+**Iterations** (`qwen3:14b`, 1 run each):
+
+| Version | Correct | Wikipedia only | SQL → Wikipedia | Wikipedia → SQL | No articles | SQL only |
+|---|---|---|---|---|---|---|
+| Baseline: *"only use Wikipedia when explicitly asked"* | **9/17 (53 %)** | 5/6 | 0/3 | 0/3 | 1/2 | 3/3 |
+| v2: says what the database does *not* contain and when Wikipedia is *required*; no placeholder arguments | **13/17 (76 %)** | 6/6 | 2/3 | 0/3 | 2/2 | 3/3 |
+| v3: says the store also sells TV series; ambiguous question reworded | **14/17 (82 %)** | 5/6 | 3/3 | 1/3 | 2/2 | 3/3 |
+| v4: numbered citations (the model cites chunk ids, the code adds the URLs) | **13/17 (76 %)** | 6/6 | 1/3 | 1/3 | 2/2 | 3/3 |
+| v5: tool calls written as text are recovered | **14/17 (82 %)** | 6/6 | 2/3 | 1/3 | 2/2 | 3/3 |
+
+Baseline detail: [`results/eval_agente_baseline.json`](results/eval_agente_baseline.json). What the failures showed:
+- **The agent avoided Wikipedia in mixed questions.** The rule added to stop it from using Wikipedia in a sales ranking worked (3/3 SQL-only questions), but it went too far: asked for the city where U2 was formed, the agent looked for it in the database and answered that it *"can't be determined"*. It also guessed band names from its own knowledge (Lars Ulrich → Metallica) instead of searching.
+- **A placeholder as an argument.** It called `search_wikipedia(artist_name="[Artist Name]")` in parallel with the SQL query, before knowing the artist.
+- **Invented results, caught by the grounded-numbers check.** It answered *"the query returned 32 Queen songs"* without having run any query (the real value is 45).
+- **Facts from its own knowledge**, caught by the forbidden-facts check: *"AC/DC was formed in Sydney"*, while admitting in the same sentence that the documents don't say so.
+- **A bug in the evaluation itself:** the number extraction read *"October 28, 1981"* as a single number, so a correct answer was marked as ungrounded. Fixed before computing the numbers above.
+
+v2 detail: [`results/eval_agente_v2.json`](results/eval_agente_v2.json). The SQL-only questions still don't use Wikipedia, and there are no invented numbers or facts from the model's own knowledge. The remaining failures:
+- **Tool call written as plain text** (the known issue from the SQL evaluation): after the SQL query it wrote `<tool_call>{"name": "search_wikipedia", ...}</tool_call>` as its answer, with the right arguments.
+- **A side effect of the new rule:** told that the database "only contains sales and catalog data", it concluded that the store doesn't sell TV series and answered without searching (Chinook does sell TV episodes).
+- **An ambiguous question:** for *"how many of his songs are in the store"* (Freddie Mercury) it counted the tracks where he is the composer (2) instead of Queen's tracks (45). A reasonable reading, so the question needs rewording.
+- One answer took the band from the documents but didn't cite the URL.
+
+v3 detail: [`results/eval_agente_v3.json`](results/eval_agente_v3.json). Two of the three failures are only a missing URL (the facts are correct), and the answer that failed that way in v2 passes now, so citing the source is the least stable behaviour. The third failure: to find *"the series about the survivors of Oceanic flight 815"* it guessed *Lost* from its own knowledge instead of searching, and then listed the sales row by row instead of using `SUM`, hit the 20-row limit and gave a partial total.
+
+v4 detail: [`results/eval_agente_v4.json`](results/eval_agente_v4.json). Citations work as in production RAG systems: `search_wikipedia` returns each chunk with its id, the model cites the ids it used (`[90_2]`), and the agent replaces them with numbers and appends the URLs, dropping any id the model never received. All 6 Wikipedia-only answers now cite their source, but the overall rate of answers with a citation didn't change (75 %), so the gain is in reliability of the format (no invented or mistyped URLs), not yet in how often the model cites. The 4 failures:
+- **2 tool calls written as plain text**, both for the first SQL query, so the agent ended before doing anything. It is now the most frequent failure.
+- **An invented result again**, caught by the grounded-numbers check: *"there are 11 Metallica albums"* without having run any query (the real value is 10).
+- One correct answer ($81.59 for *Lost*) without a citation, and in English.
+
+The differences between v3 and v4 (one question) are within the run-to-run variation; only the jump from the baseline to v2–v4 is clearly significant.
+
+v5 detail: [`results/eval_agente_v5.json`](results/eval_agente_v5.json). The model node now parses tool calls written as text into real ones; 4 were recovered in this run, and the two questions that stopped because of them now continue. A first version of the fix didn't work: in those cases the content was empty and the call was inside the reasoning field, where the older fix for empty answers took it as the final answer. The two workarounds for `qwen3` on Ollama interact, and the order in which they are applied matters. With temperature 0, v4 and v5 give the same answers wherever the fix doesn't apply, so the change in score comes from this fix. The 3 failures left are all on the SQL side:
+- **Invented result** (again the same answer as in v4): *"there are 11 Metallica albums"* without running any query.
+- **Wrong SQL:** for revenue it summed `Invoice.Total` (the whole invoice) instead of the invoice lines of the series' tracks ($833.70 instead of $81.59).
+- **Misread question:** asked for the album that made the most money, it ranked artists (Iron Maiden) instead of albums.
+
 ## Known issues and next steps
 
 Issues found while building and evaluating the agent, and how they are planned to be addressed:
 
 | Issue | Observed | Planned fix |
 |---|---|---|
-| **Tool calls written as plain text.** The model sometimes outputs `<tool_call>{...}</tool_call>` as text instead of a real tool call, and the agent ends without an answer. | 2 of 78 answers (`qwen3:14b`); very frequent with `llama3.1:8b` | Detect the pattern in the model node and either parse it into a real tool call or ask the model to retry. |
+| **Tool calls written as plain text.** The model sometimes outputs `<tool_call>{...}</tool_call>` as text instead of a real tool call, and the agent ends without an answer. | 2 of 78 answers in the SQL evaluation; 2 of 17 in the full evaluation (v4); very frequent with `llama3.1:8b` | **Fixed:** the model node parses the text into a real tool call (also when it arrives inside the reasoning field with empty content). 4 calls recovered in the v5 run. |
 | **Answers taken from sample rows.** When the 5 sample rows of `describe_tables` already contain the answer, the agent answers without running a query. Correct here, but unreliable in general (5 rows are not the full table). | 3 of 78 answers | Tell the model that sample rows are only for understanding the format, and evaluate the final answer as well as the SQL. |
 | **SQL written from memory.** Occasionally the model skips `describe_tables` and guesses column names (e.g. `Track.ArtistId`, which does not exist). It recovers thanks to the error message, at the cost of extra steps. | Seen during development | The SQL error message already suggests calling `describe_tables`; next, include the schema of the involved tables directly in the error. |
 | **Answer inside the reasoning field.** With `qwen3` on Ollama the final answer sometimes arrives in the reasoning field with empty content. | 18 of 26 answers before the fix | Worked around in the model node (fixed). To revisit if newer Ollama versions change this behaviour. |
@@ -113,6 +166,7 @@ ollama pull qwen3:14b
 uv run src/descargar_datos.py          # Chinook database → data/chinook.sqlite
 uv run src/agente.py                   # runs the agent on an example question
 uv run src/evaluar_sql.py qwen3:14b 3  # evaluation (3 runs) → results/eval_sql.json
+uv run src/evaluar_agente_global.py qwen3:14b 1  # full agent evaluation → results/eval_agente.json
 
 # RAG layer
 uv run src/descargar_wikipedia.py 20   # articles of the 20 best-selling artists → data/wiki/

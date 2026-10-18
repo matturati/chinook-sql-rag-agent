@@ -58,10 +58,12 @@ def buscar(query: str,coleccion, k: int=5,artist_name:str | None = None) -> list
                  f"they may not be about {artist_name}.\nAvailable artists: {", ".join(artistas.values())}")
 
     resultados = coleccion.query(query_texts=[query],n_results=k,where=where)
-    documentos = [{"document":text,"url":meta["url"]} for text,meta in zip(resultados["documents"][0],resultados["metadatas"][0])]
+    # The chunk id is what the model cites, e.g. [90_2]; the agent turns it into the URL
+    documentos = [{"id":id_,"document":text,"url":meta["url"]}
+                  for id_,text,meta in zip(resultados["ids"][0],resultados["documents"][0],resultados["metadatas"][0])]
 
     if aviso:
-        documentos.insert(0, {"document":aviso,"url":None})
+        documentos.insert(0, {"id":None,"document":aviso,"url":None})
     return documentos
 
 
