@@ -127,6 +127,10 @@ v5 detail: [`results/eval_agente_v5.json`](results/eval_agente_v5.json). The mod
 - **Wrong SQL:** for revenue it summed `Invoice.Total` (the whole invoice) instead of the invoice lines of the series' tracks ($833.70 instead of $81.59).
 - **Misread question:** asked for the album that made the most money, it ranked artists (Iron Maiden) instead of albums.
 
+**Current result (v5, 3 runs × 17 questions): 82.4 % (14/17 in each run).** All the Wikipedia-only, no-articles and SQL-only questions pass, and every answer that uses Wikipedia cites its source. Detail: [`results/eval_agente.json`](results/eval_agente.json).
+
+The 3 runs gave **exactly the same answer** to all 17 questions, so at `temperature=0` this agent is deterministic and a single run was enough to compare the iterations above. Repeating runs adds no information here; more questions would. (The SQL evaluation did show some variation between runs; it was run with an earlier version of the agent and prompt.)
+
 ## Known issues and next steps
 
 Issues found while building and evaluating the agent, and how they are planned to be addressed:
