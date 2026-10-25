@@ -12,6 +12,7 @@ from rag import buscar,obtener_coleccion, artistas_indexados
 import json
 import re
 import sqlite3
+import sys
 import uuid
 import logging
 from pathlib import Path
@@ -260,12 +261,13 @@ if __name__ == "__main__":
     agent = construir_agente()
     system_message = SystemMessage(SYSTEM_PROMPT)
 
-    # Example questions: SQL only, RAG only, and mixed (SQL + RAG in both directions)
-    preguntas = [
+    # A question passed on the command line, or the example questions:
+    # SQL only, RAG only, and mixed (SQL + RAG in both directions)
+    preguntas = [" ".join(sys.argv[1:])] if len(sys.argv) > 1 else [
         "top 5 de artistas por facturación",                                              # SQL
         "¿Quién era el batería de Led Zeppelin?",                                         # RAG
         "¿Cuál es el artista que más dinero ha generado en ventas y dónde se formó?",     # SQL → RAG
-        "¿En qué banda cantaba Freddie Mercury y cuántas canciones suyas hay en la tienda?",  # RAG → SQL
+        "¿En qué banda cantaba Freddie Mercury y cuántas canciones de esa banda hay en la tienda?",  # RAG → SQL
         "¿Cuántas canciones de Aerosmith hay en la tienda y de dónde es el grupo?",       # artist without articles
     ]
 

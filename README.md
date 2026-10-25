@@ -1,23 +1,33 @@
 # SQL + RAG agent over Chinook
 
-An agent built with **LangGraph** that answers natural-language questions about a music store (the [Chinook](https://github.com/lerocha/chinook-database) database). The agent explores the schema, writes and runs SQL queries, recovers from its own errors and explains the result. It runs **fully locally** with [Ollama](https://ollama.com) models (`qwen3:14b` by default).
+An agent built with **LangGraph** that answers natural-language questions about a music store (the [Chinook](https://github.com/lerocha/chinook-database) database). It explores the schema, writes and runs SQL queries and recovers from its own errors, and it combines the sales data with a **RAG** layer over the Wikipedia articles of the best-selling artists, citing its sources. Everything runs **locally** with [Ollama](https://ollama.com) models (`qwen3:14b` for the agent, `qwen3-embedding:0.6b` for the embeddings).
 
-It also has a **RAG** layer over the Wikipedia articles of the best-selling artists, so it can answer questions that combine sales data with information about the artists (e.g. *"Which artist has generated the most revenue, and where was the band formed?"*).
+| Evaluation | Questions | Result |
+|---|---|---|
+| SQL agent (execution accuracy) | 26, 3 runs | **93.6 %** (92.3 – 96.2 %) |
+| Full agent: SQL + Wikipedia, automatic checks | 17, 3 runs | **82.4 %** (from 53 % in the first version) |
 
-Example run:
+Example run (the agent answers in the language of the question):
 
 ```
-User: Which support employee has generated the most sales through their assigned customers?
+User: ¿Cuál es el artista que más dinero ha generado en ventas y dónde se formó?
+      (Which artist has generated the most revenue, and where was the band formed?)
 
-  → describe_tables(["Employee", "Customer", "Invoice"])
-  → execute_query("SELECT e.FirstName, e.LastName, SUM(i.Total) ... GROUP BY e.EmployeeId ...")
+  → describe_tables(["InvoiceLine", "Track", "Album", "Artist"])
+  → execute_query("SELECT Artist.Name, SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) ... LIMIT 1")
+  → search_wikipedia(query="Where was Iron Maiden formed?", artist_name="Iron Maiden")
 
-Agent: Jane Peacock, with $833.04 in sales through her assigned customers...
+Agent: El artista que más dinero ha generado en ventas es Iron Maiden, con un total de $138.6 en
+       ingresos. Iron Maiden fue formado en Leyton, East London, Inglaterra, en el otoño de 1975
+       por el bajista Steve Harris [1].
+
+       Sources:
+       [1] https://en.wikipedia.org/wiki/Iron_Maiden
 ```
 
 ## Architecture
 
-A ReAct agent implemented as a LangGraph graph: at each step the model decides whether to call a tool or answer.
+A ReAct agent implemented as a LangGraph graph: at each step the model decides whether to call tools or answer.
 
 ```mermaid
 graph TD;
@@ -31,26 +41,36 @@ graph TD;
 |---|---|
 | `list_tables` | Lists the tables in the database |
 | `describe_tables` | For a list of tables, returns their `CREATE TABLE` statement (columns, types, primary and foreign keys) and 5 sample rows |
-| `execute_query` | Runs a SQL query and returns at most 20 rows |
-| `search_wikipedia` | Semantic search over the artists' Wikipedia articles, optionally filtered by artist; returns the matching chunks with their source URL |
+| `execute_query` | Runs a SQL query on a read-only connection and returns at most 20 rows |
+| `search_wikipedia` | Semantic search over the artists' Wikipedia articles, optionally filtered by artist; returns the matching chunks with their id and source URL |
+
+## Data pipeline (RAG)
+
+1. **Ingestion** (`descargar_wikipedia.py`): downloads from the Wikipedia API the articles of the 20 artists with the most revenue in the database, respecting the API rate limits. Chinook also sells TV series, so the database itself is used to disambiguate: if all of an "artist's" tracks are TV genres, it looks for the series (*Lost* is the TV series, not the band *Lost*).
+2. **Chunking** (`chunking_script.py`): structure-aware, by sections and subsections. Short sections are merged and long ones split by paragraph (300–2,000 characters). Every chunk starts with a context header (artist and section) and carries metadata: `artist_id` (which links it to the SQL database), section and source URL. 810 chunks.
+3. **Indexing** (`rag.py`): embeddings with `qwen3-embedding:0.6b` into a persistent Chroma collection. Chunk ids are stable (`{artist_id}_{n}`) and written with `upsert`, so re-indexing is idempotent. The collection name includes the embedding model, so vectors from different models are never mixed.
+4. **Search** (`rag.py`): optional filter by artist, case-insensitive. If the artist has no articles (e.g. a band member like Freddie Mercury), it searches all artists and warns that the results may not be about that artist instead of returning nothing, so the model gets the answer from the documents and not from its own knowledge.
+
+A quick check of cross-language retrieval: the same 6 questions in English and Spanish return the same top-3 chunks in 5 of 6 cases, with slightly higher distances in Spanish. The agent is asked to search in English.
 
 ## Design decisions
 
-- **Safety by design, not by prompt.** The connection is opened read-only (`mode=ro`): even if the model generates a `DELETE` or a `DROP`, SQLite rejects it. Write attempts are logged as warnings.
-- **Errors the model can act on.** SQL errors (unknown column, syntax…) are returned to the model as a `ToolException` with the original message, so it can fix the query. Unexpected errors are not swallowed.
+- **Safety by design, not by prompt.** The SQL connection is opened read-only (`mode=ro`): even if the model generates a `DELETE` or a `DROP`, SQLite rejects it. Write attempts are logged as warnings.
+- **Errors the model can act on.** SQL errors (unknown column, syntax…) are returned to the model with the original message, so it can fix the query. Unexpected errors are not swallowed.
 - **Context control.** `execute_query` returns at most 20 rows and says when it truncates, nudging the model towards `COUNT`, `GROUP BY` or `LIMIT`. Ollama silently truncates anything that doesn't fit in the context window (4096 tokens by default), so the context size is set explicitly (`num_ctx`).
-- **Fewer loop iterations.** `describe_tables` accepts several tables in a single call, and the table names are included in the system prompt.
-- **Schema with relationships.** The tool returns the `CREATE TABLE` statement instead of a plain column list, so the model sees the foreign keys, plus sample rows so it sees the real data formats (dates, country names…).
+- **Schema with relationships.** `describe_tables` returns the `CREATE TABLE` statement instead of a plain column list, so the model sees the foreign keys, plus sample rows so it sees the real data formats. It accepts several tables per call, and the table names are in the system prompt, to save loop iterations.
 - **SQL injection in the tools.** Table names are validated against `sqlite_master` with parameterized queries before being used.
-- **Concurrency.** `ToolNode` runs tools in threads, so each call opens its own connection.
+- **Concurrency.** `ToolNode` runs tool calls in parallel threads: each SQL call opens its own connection (SQLite connections can't be shared between threads), while the Chroma client is created once before the agent starts (creating several at the same time fails).
+- **Citations: the model chooses, the code formats.** The model cites the ids of the chunks it used (`[90_2]`); the agent replaces them with numbers and appends the URLs, dropping any id the model never received. URLs can't be invented or mistyped.
+- **Workarounds for `qwen3` on Ollama**, in the model node: the final answer sometimes arrives in the reasoning field with empty content, and tool calls are sometimes written as text (`<tool_call>{...}</tool_call>`) instead of real calls, which would end the agent. Both are fixed in code, in that order, because the second one can hide inside the first.
 
 ## Evaluation
+
+### SQL agent
 
 `evaluar_sql.py` runs the agent on **26 questions**, each with a hand-written reference query: counts, rankings, date aggregations, `LEFT JOIN` / `NOT EXISTS`, self-joins (`Employee.ReportsTo`) and relationships with non-obvious names (`Customer.SupportRepId`). Questions with ties or ambiguous wording were discarded.
 
 **Main metric: execution accuracy**, as in the Spider and BIRD benchmarks. The last query the agent ran is re-executed and its result is compared with the reference result (extra columns are allowed, numbers are compared with a 0.01 tolerance, and row order only counts when the question asks for it).
-
-### SQL agent: results
 
 `qwen3:14b` (Ollama, `temperature=0`, `num_ctx=16000`), 3 runs × 26 questions:
 
@@ -61,103 +81,53 @@ graph TD;
 | Tool calls per question | 1.9 | |
 | Time per question (RTX 4060 Ti 16 GB) | 36 s | |
 
-Even with `temperature=0` the results vary slightly between runs, which is why the evaluation is repeated. Full detail per question and run: [`results/eval_sql.json`](results/eval_sql.json).
-
-**Failure analysis.** Only 2 of the 26 questions failed in any run:
-- *"Who does employee Jane Peacock report to?"* (fails in 3/3 runs): the final answer is **correct**, but the agent takes it from the sample rows returned by `describe_tables` (which happen to include both employees) instead of running a query. Execution accuracy counts it as a failure because there is no SQL to check.
-- *"Which country has generated the most revenue?"* (fails in 2/3 runs): the model writes the tool call **as plain text** (`<tool_call>{...}</tool_call>`) instead of emitting a real tool call, so the agent ends without answering. A known failure mode of local models with tool calling.
-
-Bug found and fixed thanks to the evaluation: with `qwen3` on Ollama, the final answer sometimes ended up inside the reasoning field with empty content (18 of 26 answers in a first run). The model node now moves it to the content.
-
-**Limitations**, to read the numbers correctly:
-- Chinook is a well-known public database and the model has probably seen it during training (contamination), so results on a private database would likely be lower.
-- 26 questions is a small sample.
-- The metric only looks at the last query executed: if the agent answers correctly without running SQL (for example, from the sample rows returned by `describe_tables`), it counts as a failure.
+Only 2 of the 26 questions failed in any run: one where the agent took the (correct) answer from the sample rows of `describe_tables` instead of running a query, so there was no SQL to check, and one where it wrote the tool call as text and stopped (fixed later, see the design decisions). Detail: [`results/eval_sql.json`](results/eval_sql.json). This evaluation was run before the RAG layer was added, with the SQL-only version of the agent.
 
 ### Full agent (SQL + RAG)
 
-`evaluar_agente_global.py` runs the complete agent (4 tools) on **17 questions** of five types: Wikipedia only, SQL then Wikipedia (*"which artist sells the most, and where was the band formed?"*), Wikipedia then SQL (*"which band did Freddie Mercury sing in, and how many of its songs does the store have?"*), artists in the store without Wikipedia articles, and SQL only. Every reference answer was checked against the database and the downloaded articles, not against general knowledge.
+`evaluar_agente_global.py` runs the complete agent on **17 questions** of five types: Wikipedia only, SQL then Wikipedia (*"which artist sells the most, and where was the band formed?"*), Wikipedia then SQL (*"which band did Freddie Mercury sing in, and how many of its songs does the store have?"*), artists in the store without Wikipedia articles, and SQL only. Every reference answer was checked against the database and the downloaded articles, not against general knowledge.
 
-Each answer goes through automatic checks (no LLM judge yet):
+Each answer goes through automatic checks, and counts as correct only if it passes every check that applies to it:
 
 | Check | What it verifies |
 |---|---|
 | Key facts | The answer contains the expected values (text without accents or case, numbers with a 0.01 tolerance) |
 | No forbidden facts | It doesn't state facts the model knows but the documents don't contain (e.g. *Boston* for Aerosmith, which has no articles) |
 | Tools | It called the tools the question needs, and not the ones it doesn't (e.g. no Wikipedia for a sales ranking) |
-| Cites the source | It includes the Wikipedia URL when the answer comes from the articles |
+| Cites the source | It cites the Wikipedia article when the answer comes from the articles |
 | Grounded numbers | Every number in the answer appears in a tool result or in the question, to catch invented results |
 
-An answer is correct only if it passes every check that applies to it.
-
-**Iterations** (`qwen3:14b`, 1 run each):
+**Iterations.** Each change was measured with one run (`qwen3:14b`, `temperature=0`); the per-question detail of every version is in `results/`.
 
 | Version | Correct | Wikipedia only | SQL → Wikipedia | Wikipedia → SQL | No articles | SQL only |
 |---|---|---|---|---|---|---|
-| Baseline: *"only use Wikipedia when explicitly asked"* | **9/17 (53 %)** | 5/6 | 0/3 | 0/3 | 1/2 | 3/3 |
-| v2: says what the database does *not* contain and when Wikipedia is *required*; no placeholder arguments | **13/17 (76 %)** | 6/6 | 2/3 | 0/3 | 2/2 | 3/3 |
-| v3: says the store also sells TV series; ambiguous question reworded | **14/17 (82 %)** | 5/6 | 3/3 | 1/3 | 2/2 | 3/3 |
-| v4: numbered citations (the model cites chunk ids, the code adds the URLs) | **13/17 (76 %)** | 6/6 | 1/3 | 1/3 | 2/2 | 3/3 |
-| v5: tool calls written as text are recovered | **14/17 (82 %)** | 6/6 | 2/3 | 1/3 | 2/2 | 3/3 |
+| [Baseline](results/eval_agente_baseline.json): *"only use Wikipedia when explicitly asked"* | **9/17 (53 %)** | 5/6 | 0/3 | 0/3 | 1/2 | 3/3 |
+| [v2](results/eval_agente_v2.json): says what the database does *not* contain and when Wikipedia is *required* | **13/17 (76 %)** | 6/6 | 2/3 | 0/3 | 2/2 | 3/3 |
+| [v3](results/eval_agente_v3.json): says the store also sells TV series; ambiguous question reworded | **14/17 (82 %)** | 5/6 | 3/3 | 1/3 | 2/2 | 3/3 |
+| [v4](results/eval_agente_v4.json): numbered citations (the model cites chunk ids, the code adds the URLs) | **13/17 (76 %)** | 6/6 | 1/3 | 1/3 | 2/2 | 3/3 |
+| [v5](results/eval_agente_v5.json): tool calls written as text are recovered | **14/17 (82 %)** | 6/6 | 2/3 | 1/3 | 2/2 | 3/3 |
 
-Baseline detail: [`results/eval_agente_baseline.json`](results/eval_agente_baseline.json). What the failures showed:
-- **The agent avoided Wikipedia in mixed questions.** The rule added to stop it from using Wikipedia in a sales ranking worked (3/3 SQL-only questions), but it went too far: asked for the city where U2 was formed, the agent looked for it in the database and answered that it *"can't be determined"*. It also guessed band names from its own knowledge (Lars Ulrich → Metallica) instead of searching.
-- **A placeholder as an argument.** It called `search_wikipedia(artist_name="[Artist Name]")` in parallel with the SQL query, before knowing the artist.
-- **Invented results, caught by the grounded-numbers check.** It answered *"the query returned 32 Queen songs"* without having run any query (the real value is 45).
-- **Facts from its own knowledge**, caught by the forbidden-facts check: *"AC/DC was formed in Sydney"*, while admitting in the same sentence that the documents don't say so.
-- **A bug in the evaluation itself:** the number extraction read *"October 28, 1981"* as a single number, so a correct answer was marked as ungrounded. Fixed before computing the numbers above.
+What the iterations showed:
+- **Prompt rules can overshoot.** The baseline rule kept Wikipedia out of the sales questions (3/3), but the agent then avoided it in mixed questions too: asked where U2 was formed, it looked in the database and answered that it *"can't be determined"*. Telling it what the database does **not** contain fixed most of it (v2), and that rule in turn made it assume the store sells no TV series, fixed in v3.
+- **The checks catch what reading a few answers doesn't.** Invented results (*"the query returned 32 Queen songs"* without having run any query), facts from the model's own knowledge (*"AC/DC was formed in Sydney"*), a placeholder used as an argument (`artist_name="[Artist Name]"`) and an ambiguous question in the evaluation itself.
+- **Not every fix is a prompt.** Citations (v4) and the recovery of tool calls written as text (v5) are code. The first version of the v5 fix didn't work: the call was inside the reasoning field, where the older workaround took it as the final answer.
+- **The evaluation needed fixing too:** the number extraction read *"October 28, 1981"* as a single number and marked a correct answer as ungrounded.
 
-v2 detail: [`results/eval_agente_v2.json`](results/eval_agente_v2.json). The SQL-only questions still don't use Wikipedia, and there are no invented numbers or facts from the model's own knowledge. The remaining failures:
-- **Tool call written as plain text** (the known issue from the SQL evaluation): after the SQL query it wrote `<tool_call>{"name": "search_wikipedia", ...}</tool_call>` as its answer, with the right arguments.
-- **A side effect of the new rule:** told that the database "only contains sales and catalog data", it concluded that the store doesn't sell TV series and answered without searching (Chinook does sell TV episodes).
-- **An ambiguous question:** for *"how many of his songs are in the store"* (Freddie Mercury) it counted the tracks where he is the composer (2) instead of Queen's tracks (45). A reasonable reading, so the question needs rewording.
-- One answer took the band from the documents but didn't cite the URL.
+**Current result (v5, 3 runs): 82.4 %**, 14/17 in each run, with every answer that uses Wikipedia citing its source. Detail: [`results/eval_agente.json`](results/eval_agente.json). The 3 failures are all on the SQL side of mixed questions: an invented count (*"11 Metallica albums"* without running a query; the real value is 10), a revenue query that summed whole invoices instead of the invoice lines, and a question about the best-selling *album* answered with the best-selling *artist*.
 
-v3 detail: [`results/eval_agente_v3.json`](results/eval_agente_v3.json). Two of the three failures are only a missing URL (the facts are correct), and the answer that failed that way in v2 passes now, so citing the source is the least stable behaviour. The third failure: to find *"the series about the survivors of Oceanic flight 815"* it guessed *Lost* from its own knowledge instead of searching, and then listed the sales row by row instead of using `SUM`, hit the 20-row limit and gave a partial total.
+## Limitations and future work
 
-v4 detail: [`results/eval_agente_v4.json`](results/eval_agente_v4.json). Citations work as in production RAG systems: `search_wikipedia` returns each chunk with its id, the model cites the ids it used (`[90_2]`), and the agent replaces them with numbers and appends the URLs, dropping any id the model never received. All 6 Wikipedia-only answers now cite their source, but the overall rate of answers with a citation didn't change (75 %), so the gain is in reliability of the format (no invented or mistyped URLs), not yet in how often the model cites. The 4 failures:
-- **2 tool calls written as plain text**, both for the first SQL query, so the agent ended before doing anything. It is now the most frequent failure.
-- **An invented result again**, caught by the grounded-numbers check: *"there are 11 Metallica albums"* without having run any query (the real value is 10).
-- One correct answer ($81.59 for *Lost*) without a citation, and in English.
+**To read the numbers correctly:**
+- Chinook is a well-known public database and the model has probably seen it during training (contamination), so results on a private database would likely be lower.
+- 26 and 17 questions are small samples, and the iterations were compared with one run each, so a difference of one question between versions is not conclusive. The 3 runs of v5 gave identical answers, but the SQL evaluation, also at `temperature=0`, did vary between runs.
+- The full-agent checks are automatic: they verify facts, tools, sources and numbers, but not the quality of open answers.
 
-The differences between v3 and v4 (one question) are within the run-to-run variation; only the jump from the baseline to v2–v4 is clearly significant.
-
-v5 detail: [`results/eval_agente_v5.json`](results/eval_agente_v5.json). The model node now parses tool calls written as text into real ones; 4 were recovered in this run, and the two questions that stopped because of them now continue. A first version of the fix didn't work: in those cases the content was empty and the call was inside the reasoning field, where the older fix for empty answers took it as the final answer. The two workarounds for `qwen3` on Ollama interact, and the order in which they are applied matters. With temperature 0, v4 and v5 give the same answers wherever the fix doesn't apply, so the change in score comes from this fix. The 3 failures left are all on the SQL side:
-- **Invented result** (again the same answer as in v4): *"there are 11 Metallica albums"* without running any query.
-- **Wrong SQL:** for revenue it summed `Invoice.Total` (the whole invoice) instead of the invoice lines of the series' tracks ($833.70 instead of $81.59).
-- **Misread question:** asked for the album that made the most money, it ranked artists (Iron Maiden) instead of albums.
-
-**Current result (v5, 3 runs × 17 questions): 82.4 % (14/17 in each run).** All the Wikipedia-only, no-articles and SQL-only questions pass, and every answer that uses Wikipedia cites its source. Detail: [`results/eval_agente.json`](results/eval_agente.json).
-
-In these 3 runs (back to back, in the same session) all 17 answers were identical. That doesn't mean the agent is deterministic: the SQL evaluation, also at `temperature=0`, varied between runs (92.3–96.2 %), so the result may change in other sessions. The iterations above were compared with a single run each, so differences of one question between them are not conclusive.
-
-## Known issues and next steps
-
-Issues found while building and evaluating the agent, and how they are planned to be addressed:
-
-| Issue | Observed | Planned fix |
-|---|---|---|
-| **Tool calls written as plain text.** The model sometimes outputs `<tool_call>{...}</tool_call>` as text instead of a real tool call, and the agent ends without an answer. | 2 of 78 answers in the SQL evaluation; 2 of 17 in the full evaluation (v4); very frequent with `llama3.1:8b` | **Fixed:** the model node parses the text into a real tool call (also when it arrives inside the reasoning field with empty content). 4 calls recovered in the v5 run. |
-| **Answers taken from sample rows.** When the 5 sample rows of `describe_tables` already contain the answer, the agent answers without running a query. Correct here, but unreliable in general (5 rows are not the full table). | 3 of 78 answers | Tell the model that sample rows are only for understanding the format, and evaluate the final answer as well as the SQL. |
-| **SQL written from memory.** Occasionally the model skips `describe_tables` and guesses column names (e.g. `Track.ArtistId`, which does not exist). It recovers thanks to the error message, at the cost of extra steps. | Seen during development | The SQL error message already suggests calling `describe_tables`; next, include the schema of the involved tables directly in the error. |
-| **Answer inside the reasoning field.** With `qwen3` on Ollama the final answer sometimes arrives in the reasoning field with empty content. | 18 of 26 answers before the fix | Worked around in the model node (fixed). To revisit if newer Ollama versions change this behaviour. |
-| **Contamination.** The model probably knows Chinook, which inflates the results. | — | Evaluate on a version of the database with renamed tables and columns, and add more questions. |
-| **Unbounded `describe_tables` output.** Asking for many tables at once can fill the context window (Ollama truncates silently). | Seen with all 11 tables at once | Limit the number of tables per call or the size of the output. |
-| **Chunking edge cases.** No overlap between chunks; a single paragraph longer than the maximum is kept whole (one chunk of 2,323 characters); a short first section is not merged. | — | Split long paragraphs by sentence, evaluate adding overlap, handle the first-section case. |
-| **Invented results.** In a mixed question, the model stopped halfway and answered *"the query returned 21 songs"* without having run any query (the real value is 45). | Seen once during manual testing | Add a grounding check before the agent ends: every number in the final answer must appear in a tool result, otherwise the model is sent back to run the query. Measure it in the mixed evaluation. |
-| **Parallel calls that depend on each other.** The model sometimes searched Wikipedia for an artist before the SQL query that tells which artist it is, and guessed it wrong. | Seen during manual testing | Fixed in the system prompt (make dependent calls one at a time); to be confirmed with the mixed evaluation. |
-| **Band members passed as artists.** The model passes `artist_name="Freddie Mercury"` and doesn't retry with the band. | Seen during manual testing | Fixed in code: for an unknown artist, the search falls back to all artists and warns that the results may not be about them. |
-
-## RAG layer
-
-- [x] `descargar_wikipedia.py`: downloads the articles of the best-selling artists. It disambiguates using the database itself: if all of an "artist's" tracks are TV genres, it looks for the TV series (*Lost* is the TV series, not the band *Lost*). It respects the Wikipedia API rate limits.
-- [x] `chunking_script.py`: structure-aware chunking (sections and subsections), merging of short sections, splitting of long ones by paragraph (300–2,000 characters), a context header (artist and section) on every chunk, and metadata (`artist_id`, which links to the SQL database; section; source URL).
-- [x] `rag.py`: embeddings (`qwen3-embedding:0.6b`) and a persistent vector store (Chroma) with the 810 chunks. Chunk IDs are stable (`{artist_id}_{n}`), so re-indexing doesn't duplicate them. The search can be filtered by artist (case-insensitive). If the artist has no articles (e.g. a band member like Freddie Mercury), it searches all artists and warns that the results may not be about that artist, listing the available ones.
-  Quick check of cross-language retrieval: the same 6 questions in English and Spanish return the same top-3 chunks in 5 of 6 cases, with slightly higher distances in Spanish. The agent is still asked to search in English.
-- [x] `search_wikipedia` tool for the agent. The system prompt tells it to use Wikipedia only when asked about an artist's history, members, origin or style, to make dependent calls one at a time (first SQL to find the artist, then Wikipedia), to cite the source URL and to say so when the documents don't contain the answer. The Chroma client is created once before the agent starts, because `ToolNode` runs tool calls in parallel threads and creating several clients at the same time fails.
-- [ ] Evaluation with questions that combine SQL and RAG (several runs, as for the SQL agent).
-- [ ] Decide the distance metric (Chroma's default is L2; cosine is usual for embedding models).
-- [ ] Compare structure-aware chunking with *semantic chunking*.
+**Next steps, if the project continues:**
+- **A verifier node before the end of the graph**, reusing the grounded-numbers check: if the final answer contains a number that no tool returned, send the model back to run the query (with a cap on retries). It targets the most serious remaining failure, invented results.
+- **An LLM judge** for open answers (a different local model, e.g. `gpt-oss:20b` judging `qwen3:14b`), compared with a reference answer and validated against manual labels.
+- **Retrieval evaluation** (hit rate @ k) to compare the distance metric (Chroma's default is L2; cosine is usual for embedding models), a larger embedding model (`qwen3-embedding:4b`), chunk overlap and semantic chunking.
+- **SQL side:** include the schema of the involved tables in SQL error messages (the model sometimes guesses column names such as `Track.ArtistId`), limit the size of `describe_tables` output, and tell the model that sample rows are not the full table.
+- **More questions**, and a version of the database with renamed tables and columns to measure the effect of contamination.
 
 ## How to run it
 
@@ -166,17 +136,20 @@ Requirements: [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com) and
 ```bash
 uv sync
 ollama pull qwen3:14b
-
-uv run src/descargar_datos.py          # Chinook database → data/chinook.sqlite
-uv run src/agente.py                   # runs the agent on an example question
-uv run src/evaluar_sql.py qwen3:14b 3  # evaluation (3 runs) → results/eval_sql.json
-uv run src/evaluar_agente_global.py qwen3:14b 1  # full agent evaluation → results/eval_agente.json
-
-# RAG layer
-uv run src/descargar_wikipedia.py 20   # articles of the 20 best-selling artists → data/wiki/
-uv run src/chunking_script.py
 ollama pull qwen3-embedding:0.6b
-uv run src/rag.py                      # indexes the chunks into Chroma → data/chroma/ and runs test searches
+
+# Data (not versioned)
+uv run src/descargar_datos.py          # Chinook database → data/chinook.sqlite
+uv run src/descargar_wikipedia.py 20   # articles of the 20 best-selling artists → data/wiki/
+uv run src/rag.py                      # chunks and indexes them into Chroma → data/chroma/, then runs test searches
+
+# Agent
+uv run src/agente.py "¿Quién era el batería de Led Zeppelin?"   # your own question
+uv run src/agente.py                                            # the example questions
+
+# Evaluation
+uv run src/evaluar_sql.py qwen3:14b 3            # SQL agent, 3 runs → results/eval_sql.json
+uv run src/evaluar_agente_global.py qwen3:14b 3  # full agent, 3 runs → results/eval_agente.json
 ```
 
 Code comments are in English; variable names and the evaluation questions are in Spanish.
@@ -185,20 +158,21 @@ Code comments are in English; variable names and the evaluation questions are in
 
 ```
 src/
-├── agente.py               # tools and LangGraph agent
-├── evaluar_sql.py          # evaluation (execution accuracy)
-├── descargar_datos.py      # downloads the Chinook database
-├── descargar_wikipedia.py  # downloads and disambiguates the artists' articles
-├── chunking_script.py      # structure-aware chunking for the RAG layer
-└── rag.py                  # indexing (embeddings + Chroma) and search
-results/                    # evaluation results
-data/                       # downloaded data (not versioned)
+├── agente.py                 # tools, LangGraph agent and model-node workarounds
+├── rag.py                    # indexing (embeddings + Chroma) and search
+├── chunking_script.py        # structure-aware chunking
+├── descargar_datos.py        # downloads the Chinook database
+├── descargar_wikipedia.py    # downloads and disambiguates the artists' articles
+├── evaluar_sql.py            # SQL agent evaluation (execution accuracy)
+└── evaluar_agente_global.py  # full agent evaluation (automatic checks)
+results/                      # evaluation results, one file per version
+data/                         # downloaded data (not versioned)
 ```
 
 ## Data and licenses
 
 - Code: MIT license.
 - [Chinook Database](https://github.com/lerocha/chinook-database), by Luis Rocha: MIT license.
-- [Wikipedia](https://en.wikipedia.org) articles: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Every chunk keeps the URL of its source article.
+- [Wikipedia](https://en.wikipedia.org) articles: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Every chunk keeps the URL of its source article, and the agent cites it.
 
 The data is not included in the repository; it is downloaded by the scripts.
